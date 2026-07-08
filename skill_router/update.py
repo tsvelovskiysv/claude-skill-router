@@ -5,6 +5,7 @@
 catalog.jsonl / semantic.npy / semantic_ids.json. VERSION сравнивается, чтобы не качать зря.
 """
 import io
+import os
 import json
 import urllib.request
 import urllib.error
@@ -22,13 +23,14 @@ def _get_json(url):
 
 
 def _download(url, dest, on_progress=None):
-    """Качает во временный .part и возвращает его путь. Замена — отдельным шагом,
+    """Качает во временный .part.<pid> и возвращает его путь. Замена — отдельным шагом,
     чтобы комплект ассетов (каталог + вектора + ids) обновлялся атомарно: упавшая
-    середина не оставит новые ids при старых векторах."""
+    середина не оставит новые ids при старых векторах. pid в имени — чтобы два
+    параллельных update не писали в один файл."""
     req = urllib.request.Request(url, headers={"User-Agent": "claude-skill-router"})
     with urllib.request.urlopen(req, timeout=120) as r:
         total = int(r.headers.get("Content-Length", 0))
-        tmp = dest.with_suffix(dest.suffix + ".part")
+        tmp = dest.with_suffix(dest.suffix + f".part.{os.getpid()}")
         got = 0
         with open(tmp, "wb") as f:
             while True:
@@ -40,6 +42,39 @@ def _download(url, dest, on_progress=None):
                 if on_progress and total:
                     on_progress(dest.name, got, total)
     return tmp
+
+
+def _swap_in(parts, log):
+    """Опубликовать комплект транзакцией: старые файлы → .old, новые на место;
+    сбой на любом шаге — откат уже заменённых. Крайний случай (упал сам откат /
+    kill посреди) ловится проверкой длин ids/векторов при загрузке пула."""
+    backups = []                                   # (dest, old) — что уже сдвинули
+    try:
+        for tmp, dest in parts:
+            old = None
+            if dest.exists():
+                old = dest.with_suffix(dest.suffix + ".old")
+                if old.exists():
+                    old.unlink()
+                dest.replace(old)
+            backups.append((dest, old))
+            tmp.replace(dest)
+    except Exception as e:
+        for dest, old in reversed(backups):        # откат: вернуть старые на место
+            try:
+                if old is not None and old.exists():
+                    old.replace(dest)
+            except OSError:
+                pass
+        log(f"замена ассетов прервана ({e}) — прежний комплект восстановлен")
+        return False
+    for _, old in backups:
+        if old is not None:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+    return True
 
 
 def latest_version(repo=None):
@@ -80,7 +115,7 @@ def update(repo=None, force=False, log=print):
     def prog(name, got, total):
         log(f"  {name}: {got * 100 // total}%", end="\r")
 
-    # сначала весь комплект во временные файлы, потом разом на место
+    # сначала весь комплект во временные файлы, потом транзакцией на место
     parts = []
     try:
         for name in need:
@@ -94,8 +129,8 @@ def update(repo=None, force=False, log=print):
                 pass
         log(f"скачивание прервано ({e}) — локальные данные не тронуты")
         return False
-    for tmp, dest in parts:
-        tmp.replace(dest)
+    if not _swap_in(parts, log):
+        return False
     io.open(config.version_path(), "w", encoding="utf-8").write(tag)
     log(f"готово: каталог обновлён до {tag}")
     return True
