@@ -112,11 +112,19 @@ def main(argv=None):
     up = sub.add_parser("update", help="pull latest catalog + index from GitHub Releases")
     up.add_argument("--force", action="store_true")
 
+    uip = sub.add_parser("ui", help="open the catalog in a browser (list, tags, categories, filters)")
+    uip.add_argument("--no-open", action="store_true", help="don't auto-open the browser")
+
     args, extra = p.parse_known_args(argv)
 
     if args.cmd == "update":
         from . import update as update_mod
         return 0 if update_mod.update(force=args.force) else 1
+    if args.cmd == "ui":
+        if not _ensure_data():
+            return 1
+        from . import ui_server
+        return ui_server.serve(open_browser=not args.no_open)
     if args.cmd == "select":
         return _route(os.path.abspath(args.project), args.about, do_install=False)
     if args.cmd == "install":

@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skill Catalog — claude-skill-router</title>
+<style>
+  :root{
+    --bg:#0b0c0e; --panel:#131417; --panel2:#17191d; --line:rgba(255,255,255,.07);
+    --line2:rgba(255,255,255,.12); --txt:#e7e8ea; --dim:#8b8f96; --dim2:#6a6e75;
+    --acc:#3b82f6; --acc-dim:rgba(59,130,246,.14);
+    --good:#4ade80; --mid:#fbbf24; --low:#9aa0a8; --bad:#f87171;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+  a{color:var(--acc);text-decoration:none}
+  a:hover{text-decoration:underline}
+  header{padding:22px 26px 14px;border-bottom:1px solid var(--line);
+    display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+  header h1{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em}
+  header .sub{color:var(--dim);font-size:13px}
+  header .sub b{color:var(--txt);font-weight:600}
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    padding:14px 26px;border-bottom:1px solid var(--line);position:sticky;top:0;
+    background:var(--bg);z-index:20}
+  input,select{background:var(--panel);border:1px solid var(--line2);color:var(--txt);
+    border-radius:8px;padding:8px 11px;font-size:13px;outline:none;transition:border-color .15s}
+  input:focus,select:focus{border-color:var(--acc)}
+  input::placeholder{color:var(--dim)}
+  .search{flex:1;min-width:220px}
+  label.chk{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:13px;cursor:pointer}
+  .wrap{overflow:auto}
+  table{border-collapse:collapse;width:100%;min-width:900px}
+  thead th{position:sticky;top:0;background:var(--panel2);color:var(--dim);
+    font-weight:500;font-size:12px;text-align:left;padding:11px 14px;
+    border-bottom:1px solid var(--line2);cursor:pointer;user-select:none;white-space:nowrap}
+  thead th:hover{color:var(--txt)}
+  th .ar{color:var(--acc);font-size:10px}
+  td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr{transition:background .12s ease-out}
+  tbody tr:hover{background:var(--panel)}
+  .t-name{font-weight:500;letter-spacing:-.005em}
+  .t-desc{color:var(--dim);font-size:12.5px;max-width:520px;text-wrap:pretty}
+  .t-src{color:var(--dim);font-size:12.5px}
+  .badge{display:inline-flex;align-items:center;justify-content:center;min-width:38px;
+    padding:3px 8px;border-radius:7px;font-weight:600;font-size:13px}
+  .r-good{background:rgba(74,222,128,.13);color:var(--good)}
+  .r-mid{background:rgba(251,191,36,.13);color:var(--mid)}
+  .r-low{background:rgba(154,160,168,.12);color:var(--low)}
+  .stars{color:#e8c877}
+  .tag{display:inline-block;padding:2px 7px;border-radius:6px;font-size:11px;margin-left:5px;
+    border:1px solid var(--line2);color:var(--dim)}
+  .tag.malware{color:var(--bad);border-color:rgba(248,113,113,.4)}
+  .tag.review{color:var(--mid);border-color:rgba(251,191,36,.35)}
+  .tag.audit{color:var(--dim);border-color:var(--line2)}
+  .risk-none{color:var(--low)} .risk-low{color:var(--good)}
+  .risk-medium{color:var(--mid)} .risk-high{color:var(--bad)}
+  .chips{margin-top:5px;display:flex;flex-wrap:wrap;gap:4px}
+  .chip-t{font-size:11px;color:var(--dim);background:var(--panel2);border:1px solid var(--line);
+    border-radius:6px;padding:1px 7px;cursor:pointer;transition:color .12s,border-color .12s}
+  .chip-t:hover{color:var(--acc);border-color:var(--acc)}
+  .t-cat{font-size:11px;color:var(--dim2);margin-top:3px}
+  #tagchip{display:inline-flex;align-items:center;gap:6px;background:var(--acc-dim);color:var(--acc);
+    border:1px solid rgba(59,130,246,.4);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer}
+  .footer{padding:16px 26px;display:flex;gap:14px;align-items:center;color:var(--dim);font-size:13px}
+  .muted{color:var(--dim2)}
+  .empty{padding:60px;text-align:center;color:var(--dim)}
+  @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Skill Catalog</h1>
+  <span class="sub"><b id="total">…</b> skills · search, filter by category / tag / risk, sort</span>
+</header>
+
+<div class="toolbar">
+  <input class="search" id="q" placeholder="Search by name, source, description…" autocomplete="off">
+  <select id="category" title="Category">
+    <option value="">category: all</option>
+    <optgroup label="Web"><option>Frontend / Web UI</option><option>Backend / API</option><option>Databases</option></optgroup>
+    <optgroup label="Apps & Languages"><option>Mobile</option><option>Desktop / CLI</option><option>Languages</option></optgroup>
+    <optgroup label="Design"><option>Taste / Aesthetics</option><option>Design Systems / UI</option><option>Animation / Motion</option></optgroup>
+    <optgroup label="AI Agents"><option>Claude Code / Orchestration</option><option>Methodology</option><option>Skills &amp; Prompts</option></optgroup>
+    <optgroup label="Data & Content"><option>Documents / Office</option><option>Data / Scraping / Analytics</option><option>Media / Creative</option><option>Text / Content</option></optgroup>
+    <optgroup label="Infra & Quality"><option>DevOps / Infra</option><option>Testing / QA</option><option>Security</option></optgroup>
+    <optgroup label="Applied"><option>Education</option><option>Business / Finance / Marketing</option><option>Productivity</option></optgroup>
+    <option value="Other">Other</option>
+  </select>
+  <input id="taginput" list="taglist" placeholder="tag…" autocomplete="off" style="max-width:150px">
+  <datalist id="taglist"></datalist>
+  <span id="tagchip" style="display:none"></span>
+  <select id="risk" title="Risk">
+    <option value="">risk: any</option>
+    <option value="none">clean</option>
+    <option value="low">low</option><option value="medium">medium</option><option value="high">high</option>
+  </select>
+  <select id="minr" title="Min rating">
+    <option value="0">rating: any</option>
+    <option value="9">≥ 9</option><option value="7">≥ 7</option>
+    <option value="5">≥ 5</option><option value="3">≥ 3</option>
+  </select>
+  <label class="chk"><input type="checkbox" id="clean"> hide malware</label>
+</div>
+
+<div class="wrap">
+  <table>
+    <thead><tr id="head"></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">nothing found</div>
+</div>
+
+<div class="footer">
+  <span id="count" class="muted"></span>
+  <button id="more" class="ghost" style="display:none;background:transparent;border:1px solid var(--line2);color:var(--txt);border-radius:8px;padding:8px 14px;cursor:pointer">Load more</button>
+</div>
+
+<script>
+const COLS=[
+  {k:'rating',t:'Rating',num:1},{k:'stars',t:'Stars',num:1},{k:'installs',t:'Installs',num:1},
+  {k:'name',t:'Name'},{k:'canon',t:'Source'},{k:'owners',t:'Owners',num:1},
+  {k:'risk',t:'Risk'},{k:'description',t:'Description'}
+];
+let state={q:'',risk:'',category:'',tag:'',min_rating:0,only_clean:0,sort:'rating',order:'desc',offset:0,limit:100};
+const $=s=>document.querySelector(s);
+const fmtN=n=>n==null?'—':(n>=1000?(n/1000).toFixed(n>=10000?0:1)+'k':''+n);
+const rClass=r=>r>=8?'r-good':r>=5?'r-mid':'r-low';
+const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function headRow(){
+  $('#head').innerHTML=COLS.map(c=>{
+    const ar=state.sort===c.k?`<span class="ar">${state.order==='desc'?'▼':'▲'}</span>`:'';
+    return `<th data-k="${c.k}">${c.t} ${ar}</th>`;
+  }).join('');
+  document.querySelectorAll('#head th').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k;
+    if(state.sort===k) state.order=state.order==='desc'?'asc':'desc';
+    else{state.sort=k;state.order=(k==='name'||k==='canon'||k==='risk'||k==='category')?'asc':'desc';}
+    reload();
+  });
+}
+function tags(r){
+  let t='';
+  if(r.hard_block) t+='<span class="tag malware">malware</span>';
+  if(r.needs_review) t+='<span class="tag review">review</span>';
+  if(r.needs_audit) t+='<span class="tag audit">audit</span>';
+  return t;
+}
+function rowHtml(r){
+  return `<tr>
+    <td><span class="badge ${rClass(r.rating||0)} num">${(r.rating??'—')}</span></td>
+    <td class="num stars">★ ${fmtN(r.stars)}</td>
+    <td class="num">${r.installs==null?'—':'⬇ '+fmtN(r.installs)}</td>
+    <td class="t-name">${esc(r.name||'—')}${tags(r)}
+      <div class="t-cat">${esc(r.category||'')}</div>
+      <div class="chips">${(r.tags||[]).slice(0,5).map(t=>`<span class="chip-t" data-tag="${esc(t)}">${esc(t)}</span>`).join('')}</div>
+    </td>
+    <td class="t-src">${(r.url&&r.url.indexOf('https://github.com/')===0)?`<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.canon||'')}</a>`:esc(r.canon||'—')}</td>
+    <td class="num">${r.owners??'—'}</td>
+    <td class="risk-${r.risk||'none'}">${r.risk||'none'}</td>
+    <td class="t-desc">${esc((r.description||'').slice(0,160))}</td>
+  </tr>`;
+}
+let curReq=null;
+async function load(append){
+  const p=new URLSearchParams({q:state.q,risk:state.risk,category:state.category,tag:state.tag,
+    min_rating:state.min_rating,only_clean:state.only_clean,sort:state.sort,order:state.order,
+    offset:state.offset,limit:state.limit});
+  if(curReq) curReq.abort();
+  curReq=new AbortController();
+  let d;
+  try{ d=await (await fetch('/api/skills?'+p,{signal:curReq.signal})).json(); }
+  catch(e){ if(e.name==='AbortError') return; throw e; }
+  curReq=null;
+  $('#total').textContent=(d.total).toLocaleString('en');
+  const rows=d.rows.map(rowHtml).join('');
+  if(append) $('#rows').insertAdjacentHTML('beforeend',rows); else $('#rows').innerHTML=rows;
+  $('#empty').style.display=d.total?'none':'block';
+  const shown=Math.min(state.offset+state.limit,d.total);
+  $('#count').textContent=`showing ${shown.toLocaleString('en')} of ${d.total.toLocaleString('en')}`;
+  $('#more').style.display=shown<d.total?'inline-block':'none';
+}
+function reload(){state.offset=0;headRow();load(false);}
+let deb;
+$('#q').oninput=e=>{clearTimeout(deb);deb=setTimeout(()=>{state.q=e.target.value.trim();reload();},220);};
+$('#risk').onchange=e=>{state.risk=e.target.value;reload();};
+$('#minr').onchange=e=>{state.min_rating=+e.target.value;reload();};
+$('#clean').onchange=e=>{state.only_clean=e.target.checked?1:0;reload();};
+$('#category').onchange=e=>{state.category=e.target.value;reload();};
+$('#more').onclick=()=>{state.offset+=state.limit;load(true);};
+function setTag(t){state.tag=t;const c=$('#tagchip');$('#taginput').value=t||'';
+  if(t){c.style.display='inline-flex';c.innerHTML=`tag: ${esc(t)} ✕`;} else c.style.display='none';reload();}
+$('#tagchip').onclick=()=>setTag('');
+$('#rows').addEventListener('click',e=>{const el=e.target.closest('.chip-t');if(el)setTag(el.dataset.tag);});
+let tdeb;
+$('#taginput').oninput=e=>{clearTimeout(tdeb);tdeb=setTimeout(()=>setTag(e.target.value.trim().toLowerCase()),250);};
+fetch('/api/tags').then(r=>r.json()).then(ts=>{
+  $('#taglist').innerHTML=ts.map(t=>`<option value="${esc(t)}">`).join('');});
+headRow();load(false);
+</script>
+</body>
+</html>

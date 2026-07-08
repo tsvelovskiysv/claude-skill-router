@@ -1,6 +1,6 @@
 [project]
 name = "claude-skill-router"
-version = "0.1.0"
+version = "0.2.0"
 description = "Semantic router for Claude Code / Agent Skills — finds and installs the right skills for your project from a 65k catalog."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,3 +25,4 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["skill_router"]
+include = ["skill_router/ui/*.html"]

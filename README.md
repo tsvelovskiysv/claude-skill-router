@@ -138,7 +138,17 @@ skill-router install <skill-id> [<skill-id> ...]
 
 # Pull the latest catalog + semantic index from GitHub Releases
 skill-router update
+
+# Open the catalog in your browser — search, filter by category / tag / risk, sort
+skill-router ui
 ```
+
+### Browse the catalog
+
+`skill-router ui` launches a local dashboard (localhost, 127.0.0.1 only) over the full
+65k catalog: search, sort by rating / stars / installs, filter by **category** (7 groups ×
+22 categories), **tag**, risk, and min rating. Great for exploring what's out there before
+routing a project.
 
 ---
 
