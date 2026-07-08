@@ -1,5 +1,12 @@
 # claude-skill-router
 
+```
+ ╔═╗╦╔═╦╦  ╦    ╦═╗╔═╗╦ ╦╔╦╗╔═╗╦═╗
+ ╚═╗╠╩╗║║  ║    ╠╦╝║ ║║ ║ ║ ║╣ ╠╦╝
+ ╚═╝╩ ╩╩╩═╝╩═╝  ╩╚═╚═╝╚═╝ ╩ ╚═╝╩╚═
+   $ skill-router .  ·  semantic router for Claude Code skills
+```
+
 **The right skills for your project — found, ranked, and installed.**
 
 Semantic routing for Claude Code Agent Skills over a catalog of **65,000+ real `SKILL.md` files**, mined and deduplicated from **~2,400 GitHub repos**. Point it at a repo; it figures out what the project actually needs, ranks candidates by an honest trust score, screens them for malware, and installs a diverse set that covers every facet — not 25 near-identical React skills.

@@ -11,7 +11,11 @@ import sys
 import json
 import argparse
 
-from . import config, stack as stack_mod, facets as facets_mod
+from . import config, stack as stack_mod, facets as facets_mod, ui
+
+
+def _risk_c(risk):
+    return {"high": ui.red, "medium": ui.yellow, "low": ui.gray}.get(risk, ui.gray)(risk or "none")
 
 
 def _need_data():
@@ -32,47 +36,57 @@ def _load_facets(project, prof, about):
 
 
 def _route(project, about, do_install):
+    print(ui.banner())
     if not _need_data():
         return 1
     from . import select as select_mod, semantic
     prof = stack_mod.detect(project)
     facets, src = _load_facets(project, prof, about)
 
-    print(f"stack: {', '.join(prof['platforms']) or '—'}  frameworks: {', '.join(prof['frameworks']) or '—'}")
-    print(f"facets ({src}, {len(facets)}):")
+    stack_str = ", ".join(prof["platforms"]) or "—"
+    fw_str = ", ".join(prof["frameworks"]) or "—"
+    print(ui.bold("Detected stack:") + f"  {ui.green(stack_str)}   "
+          + ui.dim("frameworks: ") + ui.green(fw_str))
+    print(ui.bold(f"Facets ") + ui.dim(f"({src}, {len(facets)}):"))
     for f in facets:
-        print(f"   {f.get('weight', 1.0):>3}  {f['facet']}")
+        w = f.get("weight", 1.0)
+        print(f"   {ui.cyan(f'{w:>3}')}  {f['facet']}")
 
     if not semantic.available():
-        print("\nСемантический индекс не найден. Запусти:  skill-router update", file=sys.stderr)
+        print("\n" + ui.yellow("Semantic index missing. Run:  skill-router update"), file=sys.stderr)
         return 1
     picked = select_mod.select(facets, target=45)
     byf = {}
     for p in picked:
         byf.setdefault(p["facet"], []).append(p)
-    print(f"\nselected: {len(picked)} skills across {len(byf)} facets")
+    print("\n" + ui.bold(f"Skills to install ") + ui.cyan(f"({len(picked)})")
+          + ui.dim(f" across {len(byf)} facets:"))
+    i = 0
     for facet, rows in byf.items():
-        print(f"  · {facet} ({len(rows)}):")
+        print("  " + ui.dim("· ") + ui.bold(facet) + ui.dim(f" ({len(rows)})"))
         for p in rows:
-            fl = ("[REVIEW]" if p["needs_review"] else "") + ("[AUDIT]" if p["needs_audit"] else "")
-            print(f"      {p['rating']:>4}  {p['name'][:32]:<32} {p['canon']}  rel={p['rel']} risk:{p['risk'] or 'none'}{fl}")
+            i += 1
+            fl = (ui.yellow(" review") if p["needs_review"] else "") + (ui.yellow(" audit") if p["needs_audit"] else "")
+            print(f"   {ui.dim(f'{i:>2}.')} {ui.blue(p['name'][:30]):<30}  "
+                  + ui.gray(p['canon'][:30]) + f"  {ui.dim('rel')} {p['rel']}  {_risk_c(p['risk'])}{fl}")
 
     if not do_install:
-        print("\n(dry-run — nothing installed. Use `skill-router .` to install.)")
+        print("\n" + ui.dim("(dry-run — nothing installed. Run `skill-router .` to install.)"))
         return 0
 
     from . import install as install_mod
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     res = install_mod.install(project, picked, token=token)
-    print(f"\ninstalled: {len(res['installed'])} → {os.path.join(project, '.claude', 'skills')}")
+    print("\n" + ui.green(f"✔ installed {len(res['installed'])}")
+          + ui.dim(f" → {os.path.join(project, '.claude', 'skills')}"))
     if res["blocked"]:
-        print(f"blocked (malware): {', '.join(res['blocked'])}")
+        print(ui.red(f"⛔ blocked (malware): ") + ", ".join(res["blocked"]))
     if res["flagged"]:
-        print(f"skipped (needs audit): {', '.join(res['flagged'])}")
+        print(ui.yellow(f"● skipped (needs audit): ") + ", ".join(res["flagged"]))
     if res["changed"]:
-        print(f"skipped (body changed since catalog, SHA mismatch): {', '.join(res['changed'])}")
+        print(ui.yellow(f"● skipped (SHA mismatch, body changed): ") + ", ".join(res["changed"]))
     if res["failed"]:
-        print(f"fetch failed (repo/path gone?): {', '.join(res['failed'][:8])}")
+        print(ui.dim(f"○ fetch failed: ") + ", ".join(res["failed"][:8]))
     return 0
 
 
