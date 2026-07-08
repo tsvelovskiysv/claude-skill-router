@@ -31,6 +31,21 @@ def _ensure_data():
     return ok
 
 
+def _manifest_text(project):
+    """Текст файлов зависимостей — какие продукты проект реально использует."""
+    import glob
+    pats = ("requirements.txt", "package.json", "pyproject.toml", "go.mod", "Gemfile",
+            "composer.json", "Cargo.toml", "pom.xml", "*.lock", "docker-compose*.yml", ".env.example")
+    out = []
+    for pat in pats:
+        for p in glob.glob(os.path.join(project, "**", pat), recursive=True)[:20]:
+            try:
+                out.append(io.open(p, encoding="utf-8", errors="replace").read()[:20000])
+            except Exception:
+                pass
+    return " ".join(out).lower()
+
+
 def _load_facets(project, prof, about):
     fp = os.path.join(project, ".claude", "skills-facets.json")
     if os.path.exists(fp):
@@ -61,7 +76,7 @@ def _route(project, about, do_install):
     if not semantic.available():
         print("\n" + ui.yellow("Semantic index missing. Run:  skill-router update"), file=sys.stderr)
         return 1
-    pstacks = select_mod.project_stacks(prof)
+    pstacks = select_mod.project_stacks(prof, _manifest_text(project))
     if pstacks:
         print(ui.dim(f"project stack (foreign excluded): {', '.join(sorted(pstacks))}"))
     picked = select_mod.select(facets, target=45, proj_stacks=pstacks)

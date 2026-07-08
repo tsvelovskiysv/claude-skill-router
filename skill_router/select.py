@@ -26,6 +26,14 @@ STACK_TOKENS = {
     "swift": ("swift", "swiftui"), "elixir": ("elixir", "phoenix"),
     "azure": ("azure",), "aws": ("aws", "amazon web services"), "gcp": ("gcp", "google cloud"),
     "android": ("android",), "ios": ("ios", "iphone"), "flutter": ("flutter", "dart"),
+    # SaaS-продукты: нужен, только если продукт есть в коде проекта (иначе — как чужой язык)
+    "lark": ("lark", "larksuite", "feishu"), "notion": ("notion",), "stripe": ("stripe",),
+    "salesforce": ("salesforce", "sfdc"), "shopify": ("shopify",), "slack": ("slack",),
+    "discord": ("discord",), "telegram": ("telegram",), "whatsapp": ("whatsapp",),
+    "wordpress": ("wordpress",), "odoo": ("odoo",), "airtable": ("airtable",),
+    "jira": ("jira",), "hubspot": ("hubspot",), "twilio": ("twilio",),
+    "sendgrid": ("sendgrid",), "mailchimp": ("mailchimp",), "zendesk": ("zendesk",),
+    "woocommerce": ("woocommerce",), "bigcommerce": ("bigcommerce",),
 }
 
 
@@ -38,9 +46,9 @@ def _stacks_of(text):
     return out
 
 
-def project_stacks(prof):
-    blob = " ".join((prof.get("platforms") or []) + (prof.get("frameworks") or [])
-                    + (prof.get("stack_terms") or [])).lower()
+def project_stacks(prof, extra_text=""):
+    blob = (" ".join((prof.get("platforms") or []) + (prof.get("frameworks") or [])
+                     + (prof.get("stack_terms") or [])) + " " + (extra_text or "")).lower()
     s = _stacks_of(blob)
     if "frontend" in blob or any(x in blob for x in ("react", "vue", "next")):
         s.add("js")
