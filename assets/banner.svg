@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" width="800" height="300" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1220"/>
+      <stop offset="1" stop-color="#070a12"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="0.5" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#a855f7"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#a855f7" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-60%" width="160%" height="220%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <radialGradient id="halo" cx="0.5" cy="0.42" r="0.6">
+      <stop offset="0" stop-color="#3b82f6" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#3b82f6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- фон -->
+  <rect x="1" y="1" width="798" height="298" rx="18" fill="url(#bg)" stroke="#1e2636" stroke-width="1.5"/>
+  <rect x="1" y="1" width="798" height="298" rx="18" fill="url(#halo)"/>
+
+  <!-- терминальная плашка -->
+  <circle cx="34" cy="30" r="6" fill="#ff5f56"/>
+  <circle cx="56" cy="30" r="6" fill="#ffbd2e"/>
+  <circle cx="78" cy="30" r="6" fill="#27c93f"/>
+
+  <!-- заголовок с градиентом и свечением -->
+  <g filter="url(#glow)">
+    <text x="400" y="158" text-anchor="middle" font-size="82" font-weight="800"
+          letter-spacing="6" fill="url(#title)">SKILL ROUTER</text>
+  </g>
+
+  <!-- акцентная линия -->
+  <rect x="230" y="188" width="340" height="2.5" rx="1.25" fill="url(#accent)"/>
+
+  <!-- терминальная строка -->
+  <text x="400" y="228" text-anchor="middle" font-size="19"
+        font-family="'SFMono-Regular', Consolas, 'Liberation Mono', monospace">
+    <tspan fill="#64748b">$ </tspan><tspan fill="#27c93f">skill-router .</tspan>
+  </text>
+
+  <!-- тэглайн -->
+  <text x="400" y="262" text-anchor="middle" font-size="15" letter-spacing="0.5"
+        fill="#94a3b8">semantic router for Claude Code skills · 65k catalog · per-project routing</text>
+</svg>
