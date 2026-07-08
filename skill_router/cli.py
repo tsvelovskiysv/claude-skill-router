@@ -61,7 +61,10 @@ def _route(project, about, do_install):
     if not semantic.available():
         print("\n" + ui.yellow("Semantic index missing. Run:  skill-router update"), file=sys.stderr)
         return 1
-    picked = select_mod.select(facets, target=45)
+    pstacks = select_mod.project_stacks(prof)
+    if pstacks:
+        print(ui.dim(f"project stack (foreign excluded): {', '.join(sorted(pstacks))}"))
+    picked = select_mod.select(facets, target=45, proj_stacks=pstacks)
     byf = {}
     for p in picked:
         byf.setdefault(p["facet"], []).append(p)

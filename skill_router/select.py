@@ -7,12 +7,44 @@
 import io
 import json
 import math
+import re
 
 import numpy as np
 
 from . import config, semantic
 
 _POOL = {}
+
+# язык/платформа → характерные токены; скилл с ЧУЖИМ стеком в имени исключается
+STACK_TOKENS = {
+    "python": ("python", "django", "flask", "fastapi", "pandas", "numpy"),
+    "js": ("javascript", "typescript", "nodejs", "node js", "deno", "react", "vue",
+           "angular", "svelte", "nextjs", "next js", "nuxt", "tailwind", "astro"),
+    "go": ("golang", "go lang"), "rust": ("rust", "cargo"),
+    "java": ("java", "spring boot", "kotlin"), "php": ("php", "laravel", "symfony"),
+    "ruby": ("ruby", "rails"), "dotnet": ("dotnet", "csharp", "asp net"),
+    "swift": ("swift", "swiftui"), "elixir": ("elixir", "phoenix"),
+    "azure": ("azure",), "aws": ("aws", "amazon web services"), "gcp": ("gcp", "google cloud"),
+    "android": ("android",), "ios": ("ios", "iphone"), "flutter": ("flutter", "dart"),
+}
+
+
+def _stacks_of(text):
+    blob = " " + re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip() + " "
+    out = set()
+    for canon, toks in STACK_TOKENS.items():
+        if any(f" {t} " in blob for t in toks):
+            out.add(canon)
+    return out
+
+
+def project_stacks(prof):
+    blob = " ".join((prof.get("platforms") or []) + (prof.get("frameworks") or [])
+                    + (prof.get("stack_terms") or [])).lower()
+    s = _stacks_of(blob)
+    if "frontend" in blob or any(x in blob for x in ("react", "vue", "next")):
+        s.add("js")
+    return s
 
 
 def _load_catalog():
@@ -58,7 +90,7 @@ def _norm01(x):
 
 
 def select(facets, target=45, k_per_facet=150, lam=0.75, min_rating=5.0,
-           min_quota=2, dup_cos=0.90, cov_bonus=0.15, min_rel=0.28):
+           min_quota=2, dup_cos=0.90, cov_bonus=0.15, min_rel=0.28, proj_stacks=None):
     """Грани [{facet,weight}] → отобранные ~40-50 разнообразных (list[dict])."""
     if not facets:
         return []
@@ -75,7 +107,13 @@ def select(facets, target=45, k_per_facet=150, lam=0.75, min_rating=5.0,
     cand = set()
     for f in range(len(facets)):
         cand.update(np.argsort(-sim[f])[:k_per_facet].tolist())
-    cand = np.array([i for i in sorted(cand) if best_raw[i] >= min_rel], dtype=np.int64)
+    cand = [i for i in sorted(cand) if best_raw[i] >= min_rel]
+    # stack-aware: скилл, чьё ИМЯ про ЧУЖОЙ стек (golang/azure для python-проекта) — выкидываем
+    if proj_stacks:
+        ps = set(proj_stacks)
+        cand = [i for i in cand
+                if not (lambda s: s and not (s & ps))(_stacks_of(meta[i].get("name") or ""))]
+    cand = np.array(cand, dtype=np.int64)
     if len(cand) == 0:
         return []
 
