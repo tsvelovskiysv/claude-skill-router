@@ -18,11 +18,17 @@ def _risk_c(risk):
     return {"high": ui.red, "medium": ui.yellow, "low": ui.gray}.get(risk, ui.gray)(risk or "none")
 
 
-def _need_data():
-    if not config.data_ready():
-        print("Каталог не найден. Запусти:  skill-router update", file=sys.stderr)
-        return False
-    return True
+def _ensure_data():
+    """Данных нет → авто-докачка из релиза (первый запуск ставит всё сам)."""
+    if config.data_ready() and config.semantic_ready():
+        return True
+    from . import update as update_mod
+    print(ui.dim("First run — downloading catalog + index from GitHub Release …"))
+    ok = update_mod.update(force=True)
+    if not ok:
+        print(ui.yellow("Could not download the catalog. Check network / repo, then retry."),
+              file=sys.stderr)
+    return ok
 
 
 def _load_facets(project, prof, about):
@@ -37,7 +43,7 @@ def _load_facets(project, prof, about):
 
 def _route(project, about, do_install):
     print(ui.banner())
-    if not _need_data():
+    if not _ensure_data():
         return 1
     from . import select as select_mod, semantic
     prof = stack_mod.detect(project)
@@ -122,7 +128,7 @@ def main(argv=None):
 
 
 def _install_named(project, names):
-    if not _need_data():
+    if not _ensure_data():
         return 1
     from . import select as select_mod, install as install_mod
     cat = select_mod._load_catalog()

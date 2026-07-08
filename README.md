@@ -42,7 +42,7 @@ cd my-project
 skill-router .
 ```
 
-That single command runs the full pipeline: detect the stack → build facets → semantic recall → diverse selection → install. First run downloads the semantic index (~130 MB, cached afterward).
+That single command runs the full pipeline: detect the stack → build facets → semantic recall → diverse selection → install. **Nothing to set up manually** — on first run it auto-downloads the catalog + semantic index from GitHub Releases and the embedding model, then caches everything. Just install and run.
 
 Want to see what it *would* pick, without installing?
 
