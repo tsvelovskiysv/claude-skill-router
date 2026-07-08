@@ -1,0 +1,19 @@
+# данные каталога — распространяются через GitHub Releases, не через репо
+/data/*.jsonl
+/data/*.db
+/data/*.npy
+/data/*.json
+/data/VERSION
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# НИКОГДА не коммитить тела скиллов (могут содержать malware)
+skills/
+bodies/
