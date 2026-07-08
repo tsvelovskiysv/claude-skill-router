@@ -2,7 +2,7 @@
 
 Канал распространения — GitHub Releases. Мейнтейнер доливает скиллы → пересобирает
 каталог → публикует релиз. Пользователь: `skill-router update` — качает свежий
-catalog.jsonl / catalog.db / semantic.npy. VERSION сравнивается, чтобы не качать зря.
+catalog.jsonl / semantic.npy / semantic_ids.json. VERSION сравнивается, чтобы не качать зря.
 """
 import io
 import json
@@ -22,6 +22,9 @@ def _get_json(url):
 
 
 def _download(url, dest, on_progress=None):
+    """Качает во временный .part и возвращает его путь. Замена — отдельным шагом,
+    чтобы комплект ассетов (каталог + вектора + ids) обновлялся атомарно: упавшая
+    середина не оставит новые ids при старых векторах."""
     req = urllib.request.Request(url, headers={"User-Agent": "claude-skill-router"})
     with urllib.request.urlopen(req, timeout=120) as r:
         total = int(r.headers.get("Content-Length", 0))
@@ -36,7 +39,7 @@ def _download(url, dest, on_progress=None):
                 got += len(chunk)
                 if on_progress and total:
                     on_progress(dest.name, got, total)
-        tmp.replace(dest)
+    return tmp
 
 
 def latest_version(repo=None):
@@ -77,9 +80,22 @@ def update(repo=None, force=False, log=print):
     def prog(name, got, total):
         log(f"  {name}: {got * 100 // total}%", end="\r")
 
-    for name in need:
-        log(f"качаю {name} …")
-        _download(assets[name], dd / name, on_progress=prog)
+    # сначала весь комплект во временные файлы, потом разом на место
+    parts = []
+    try:
+        for name in need:
+            log(f"качаю {name} …")
+            parts.append((_download(assets[name], dd / name, on_progress=prog), dd / name))
+    except Exception as e:
+        for tmp, _ in parts:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        log(f"скачивание прервано ({e}) — локальные данные не тронуты")
+        return False
+    for tmp, dest in parts:
+        tmp.replace(dest)
     io.open(config.version_path(), "w", encoding="utf-8").write(tag)
     log(f"готово: каталог обновлён до {tag}")
     return True

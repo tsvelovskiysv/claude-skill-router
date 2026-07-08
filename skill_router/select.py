@@ -33,7 +33,7 @@ STACK_TOKENS = {
     "wordpress": ("wordpress",), "odoo": ("odoo",), "airtable": ("airtable",),
     "jira": ("jira",), "hubspot": ("hubspot",), "twilio": ("twilio",),
     "sendgrid": ("sendgrid",), "mailchimp": ("mailchimp",), "zendesk": ("zendesk",),
-    "woocommerce": ("woocommerce",), "bigcommerce": ("bigcommerce",),
+    "shopware": ("shopware",), "woocommerce": ("woocommerce",), "bigcommerce": ("bigcommerce",),
 }
 
 
@@ -70,17 +70,24 @@ def _load_catalog():
 
 
 def load_pool(min_rating=5.0):
-    """Пул rating≥min с эмбеддингами (нормированы). Кэш на процесс."""
+    """Пул rating≥min с эмбеддингами (нормированы). Кэш на процесс.
+
+    Флагнутые (needs_review/needs_audit) не берём: установщик их всё равно пропускает,
+    а слот в топ-45 они бы занимали зря."""
     key = round(min_rating, 2)
     if key in _POOL:
         return _POOL[key]
     ids = json.loads(io.open(config.semantic_ids_path(), encoding="utf-8").read())
     vecs = np.load(config.semantic_path()).astype(np.float32)
+    if len(ids) != vecs.shape[0]:
+        raise RuntimeError(
+            f"Catalog index mismatch: {len(ids)} ids vs {vecs.shape[0]} vectors. "
+            "Run `skill-router update --force` to re-download a consistent set.")
     cat = _load_catalog()
     keep, meta = [], []
     for i, eid in enumerate(ids):
         c = cat.get(eid)
-        if not c or c.get("hard_block"):
+        if not c or c.get("hard_block") or c.get("needs_review") or c.get("needs_audit"):
             continue
         if (c.get("rating") or 0) < min_rating:
             continue
@@ -98,15 +105,20 @@ def _norm01(x):
 
 
 def select(facets, target=45, k_per_facet=150, lam=0.75, min_rating=5.0,
-           min_quota=2, dup_cos=0.90, cov_bonus=0.15, min_rel=0.28, proj_stacks=None):
-    """Грани [{facet,weight}] → отобранные ~40-50 разнообразных (list[dict])."""
+           min_quota=2, dup_cos=0.90, cov_bonus=0.15, min_rel=0.45, proj_stacks=None):
+    """Грани [{facet,weight}] → отобранные ~40-50 разнообразных (list[dict]).
+
+    min_rel — порог сырого косинуса кандидата к своей грани. У bge-small «пол» косинуса
+    высокий (по пулу ~0.41+), поэтому порог ниже 0.45 не отсекает ничего."""
     if not facets:
         return []
     pool_vecs, meta = load_pool(min_rating)
     if len(meta) == 0:
         return []
     fvecs = semantic.embed([f["facet"] for f in facets])
-    weights = np.array([float(f.get("weight", 1.0)) for f in facets], dtype=np.float32)
+    # вес вне 0..1 (LLM выдал шкалу 1-10 / отрицательный) ломает баланс с rating — клампим
+    weights = np.clip(np.array([float(f.get("weight", 1.0)) for f in facets],
+                               dtype=np.float32), 0.0, 1.0)
 
     sim = fvecs @ pool_vecs.T
     best_facet = np.argmax(sim, axis=0)          # по СЫРОЙ близости

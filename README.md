@@ -57,7 +57,17 @@ The router is a five-stage funnel that narrows 65k candidates down to ~45 skills
 
 1. **Stack detection.** Reads the project's signal files — `package.json`, `requirements.txt`, `build.gradle`, `go.mod`, `Cargo.toml`, `Gemfile`, and friends — to infer languages, frameworks, and tooling.
 
-2. **Faceting.** Decomposes the project into **8–15 weighted facets** — the real aspects of the work (e.g. *frontend*, *design*, *forms*, *animations*, *security*, *testing*, *database*, *scraping*). Done in a single LLM call, with a **stack-based fallback** when no LLM is available.
+2. **Faceting.** Decomposes the project into **8–15 weighted facets** — the real aspects of the work (e.g. *frontend*, *design*, *forms*, *animations*, *security*, *testing*, *database*, *scraping*). Out of the box this is **stack-based** (derived from the detected stack). For richer facets, put a `.claude/skills-facets.json` file in the project — e.g. ask Claude Code to write one — and the router will use it instead:
+
+   ```json
+   [
+     {"facet": "react frontend web components", "weight": 1.0},
+     {"facet": "web security xss csrf auth", "weight": 0.6},
+     {"facet": "end to end testing", "weight": 0.5}
+   ]
+   ```
+
+   `facet` is a short English phrase describing one aspect of the project; `weight` is its importance, **0.0–1.0**.
 
 3. **Broad recall.** For each facet, retrieves every skill with **trust rating ≥ 5** that sits semantically near it, using embeddings (`BAAI/bge-small-en`). This casts a wide, meaning-aware net per facet.
 
@@ -102,7 +112,7 @@ No tool dominates. Pick by whether you value *simplicity* (autoskills), *volume*
 - **Diverse selection (MMR).** Per-facet quotas + near-duplicate removal produce a broad, non-redundant set — every need covered, no clones.
 - **Honest, anti-bulk trust rating (0–10).** Computed from **unique copies across distinct owners**, **repo stars**, and **real install counts** (skills.sh telemetry), with **anti-bulk logic** so a 10k-skill dump repo can't inflate all of its skills at once. Popularity of a *repo* ≠ trust in each *skill*.
 - **Structured taxonomy.** Skills organized into **7 groups × 22 categories** with canonical tags for predictable filtering and browsing.
-- **3-layer security** with an **isolated LLM audit** at selection time and a **hard-block** list of confirmed malware (see below).
+- **3-layer security** — static screening, an isolated LLM audit at catalog build time, and a **hard-block** list of confirmed malware (see below).
 - **On-demand, verified body fetch.** Skill code is pulled from origin with SHA-256 verification and **never redistributed** — malware can't propagate through this project.
 - **Auto-update channel.** `skill-router update` pulls the latest catalog + semantic index from GitHub Releases.
 
@@ -114,7 +124,7 @@ Skill marketplaces are a real supply-chain surface: skills are executable instru
 
 **Layer 1 — Static screening.** Every skill body is scanned with regex flags for known malware patterns: obfuscated `base64` → `exec` chains, password-protected archives, IP/payload droppers, and similar tells.
 
-**Layer 2 — Isolated LLM audit.** Any skill that trips a static flag is sent to an **isolated LLM audit** *at selection time* — its body is reviewed in a sandboxed prompt for malicious behavior before it can ever be recommended to you.
+**Layer 2 — Isolated LLM audit (at catalog build time).** Any skill that trips a static flag is reviewed by an **isolated LLM audit** during catalog construction — its body is examined in a sandboxed prompt for malicious behavior. Skills still awaiting that audit are marked `needs_review`/`needs_audit` in the catalog, and this client **excludes them from selection and never installs them**.
 
 **Layer 3 — Hard-block.** Confirmed-malicious skills are **hard-blocked** and can never be selected, fetched, or installed. **41 known-malicious skills are currently blocked.** During catalog construction we found and quarantined real, live malware — including **ClawHavoc**, which shipped C2 (command-and-control) server addresses inside skill bodies.
 
@@ -133,8 +143,8 @@ skill-router .
 # Routing only — print the ~45 chosen skills for this project, install nothing (dry run)
 skill-router select .
 
-# Install specific skills by id (on-demand fetch from origin + SHA-256 verify)
-skill-router install <skill-id> [<skill-id> ...]
+# Install specific skills by name (on-demand fetch from origin + SHA-256 verify)
+skill-router install <skill-name> [<skill-name> ...]
 
 # Pull the latest catalog + semantic index from GitHub Releases
 skill-router update
@@ -175,8 +185,12 @@ Because releases carry **metadata and embeddings only** (never skill bodies), up
 - **Python 3.10+** (install via `pipx` recommended).
 - **~130 MB semantic index**, downloaded on first run and cached locally.
 - The embedding model (`BAAI/bge-small-en`) is downloaded once on first use.
-- **Optional LLM (Claude) API access** for facet extraction and the isolated security audit. Without it, the router falls back to **stack-based faceting**; the static-screen and hard-block security layers still apply.
 - Network access to GitHub (for `update` and for on-demand body fetches).
+- **`GITHUB_TOKEN` recommended.** Body fetches use the GitHub API, which allows only **60 anonymous requests/hour** — one full install (~45 skills) nearly exhausts it. Set `GITHUB_TOKEN` (any classic token, no scopes needed) to raise the limit to 5,000/hour:
+
+  ```bash
+  export GITHUB_TOKEN=ghp_...        # or GH_TOKEN
+  ```
 
 ---
 

@@ -19,7 +19,14 @@ def _load():
         _STATE["np"] = np
         _STATE["vecs"] = np.load(config.semantic_path()).astype(np.float32)
         _STATE["ids"] = json.loads(io.open(config.semantic_ids_path(), encoding="utf-8").read())
-        _STATE["model"] = TextEmbedding(MODEL)
+        try:
+            _STATE["model"] = TextEmbedding(MODEL)
+        except Exception as e:
+            # первый запуск качает модель с HuggingFace — сети нет → без сырого трейсбека
+            raise RuntimeError(
+                f"Could not load the embedding model {MODEL} "
+                "(first run downloads it from HuggingFace). "
+                f"Check network access and retry. Original error: {e}") from e
     return _STATE
 
 

@@ -33,16 +33,19 @@ def _ensure_data():
 
 def _manifest_text(project):
     """Текст файлов зависимостей — какие продукты проект реально использует."""
-    import glob
+    import fnmatch
     pats = ("requirements.txt", "package.json", "pyproject.toml", "go.mod", "Gemfile",
             "composer.json", "Cargo.toml", "pom.xml", "*.lock", "docker-compose*.yml", ".env.example")
     out = []
-    for pat in pats:
-        for p in glob.glob(os.path.join(project, "**", pat), recursive=True)[:20]:
+    for p in stack_mod.iter_files(project):
+        base = os.path.basename(p).lower()
+        if any(fnmatch.fnmatch(base, pat) for pat in pats):
             try:
                 out.append(io.open(p, encoding="utf-8", errors="replace").read()[:20000])
             except Exception:
                 pass
+            if len(out) >= 40:
+                break
     return " ".join(out).lower()
 
 
@@ -79,7 +82,11 @@ def _route(project, about, do_install):
     pstacks = select_mod.project_stacks(prof, _manifest_text(project))
     if pstacks:
         print(ui.dim(f"project stack (foreign excluded): {', '.join(sorted(pstacks))}"))
-    picked = select_mod.select(facets, target=45, proj_stacks=pstacks)
+    try:
+        picked = select_mod.select(facets, target=45, proj_stacks=pstacks)
+    except RuntimeError as e:              # битые данные / модель не скачалась — без трейсбека
+        print("\n" + ui.red(str(e)), file=sys.stderr)
+        return 1
     byf = {}
     for p in picked:
         byf.setdefault(p["facet"], []).append(p)
@@ -109,13 +116,44 @@ def _route(project, about, do_install):
         print(ui.yellow(f"● skipped (needs audit): ") + ", ".join(res["flagged"]))
     if res["changed"]:
         print(ui.yellow(f"● skipped (SHA mismatch, body changed): ") + ", ".join(res["changed"]))
+    if res["no_sha"]:
+        print(ui.yellow(f"● skipped (no SHA in catalog, unverifiable): ") + ", ".join(res["no_sha"]))
+    if res["invalid"]:
+        print(ui.yellow(f"● skipped (bad skill name): ") + ", ".join(res["invalid"][:8]))
     if res["failed"]:
         print(ui.dim(f"○ fetch failed: ") + ", ".join(res["failed"][:8]))
+    if res.get("rate_limited") and not token:
+        print(ui.yellow("GitHub API rate limit hit (60 req/h anonymous). "
+                        "Set GITHUB_TOKEN to raise it to 5000 req/h."))
     return 0
+
+
+def _safe_streams():
+    """Windows: консоль cp1251 не кодирует ╔═╗/✔ → краш при редиректе. Заменяем, не падаем."""
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(errors="replace")
+        except Exception:
+            pass
+
+
+COMMANDS = ("select", "install", "update", "ui")
 
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    _safe_streams()
+
+    # без подкоманды: `skill-router` / `skill-router .` / `skill-router path` — полный цикл.
+    # Разбирается ДО argparse: сабпарсеры не пропускают неизвестный позиционный аргумент.
+    if not argv:
+        return _route(os.path.abspath("."), "", do_install=True)
+    if argv[0] not in COMMANDS and argv[0] not in ("-h", "--help"):
+        if argv[0].startswith("-"):
+            print(f"unknown option: {argv[0]} (see skill-router --help)", file=sys.stderr)
+            return 2
+        return _route(os.path.abspath(argv[0]), "", do_install=True)
+
     p = argparse.ArgumentParser(prog="skill-router", description="Semantic router for Claude Code skills.")
     sub = p.add_subparsers(dest="cmd")
 
@@ -133,7 +171,7 @@ def main(argv=None):
     uip = sub.add_parser("ui", help="open the catalog in a browser (list, tags, categories, filters)")
     uip.add_argument("--no-open", action="store_true", help="don't auto-open the browser")
 
-    args, extra = p.parse_known_args(argv)
+    args = p.parse_args(argv)
 
     if args.cmd == "update":
         from . import update as update_mod
@@ -147,10 +185,8 @@ def main(argv=None):
         return _route(os.path.abspath(args.project), args.about, do_install=False)
     if args.cmd == "install":
         return _install_named(os.path.abspath(args.project), args.names)
-
-    # без подкоманды: `skill-router .` (или без аргумента = текущая папка) — полный цикл
-    project = argv[0] if argv and not argv[0].startswith("-") else "."
-    return _route(os.path.abspath(project), "", do_install=True)
+    p.print_help()
+    return 0
 
 
 def _install_named(project, names):
@@ -174,7 +210,10 @@ def _install_named(project, names):
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     res = install_mod.install(project, rows, token=token)
     print(f"installed: {len(res['installed'])}; blocked: {len(res['blocked'])}; "
-          f"flagged: {len(res['flagged'])}; changed: {len(res['changed'])}")
+          f"flagged: {len(res['flagged'])}; changed: {len(res['changed'])}; "
+          f"no_sha: {len(res['no_sha'])}")
+    if res.get("rate_limited") and not token:
+        print("GitHub API rate limit hit — set GITHUB_TOKEN to raise it.", file=sys.stderr)
     return 0
 
 

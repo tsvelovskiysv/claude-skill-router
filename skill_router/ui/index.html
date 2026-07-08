@@ -127,7 +127,7 @@ const COLS=[
 ];
 let state={q:'',risk:'',category:'',tag:'',min_rating:0,only_clean:0,sort:'rating',order:'desc',offset:0,limit:100};
 const $=s=>document.querySelector(s);
-const fmtN=n=>n==null?'—':(n>=1000?(n/1000).toFixed(n>=10000?0:1)+'k':''+n);
+const fmtN=v=>{const n=Number(v);return v==null||!isFinite(n)?'—':(n>=1000?(n/1000).toFixed(n>=10000?0:1)+'k':''+n);};
 const rClass=r=>r>=8?'r-good':r>=5?'r-mid':'r-low';
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -152,7 +152,7 @@ function tags(r){
 }
 function rowHtml(r){
   return `<tr>
-    <td><span class="badge ${rClass(r.rating||0)} num">${(r.rating??'—')}</span></td>
+    <td><span class="badge ${rClass(Number(r.rating)||0)} num">${esc(String(r.rating??'—'))}</span></td>
     <td class="num stars">★ ${fmtN(r.stars)}</td>
     <td class="num">${r.installs==null?'—':'⬇ '+fmtN(r.installs)}</td>
     <td class="t-name">${esc(r.name||'—')}${tags(r)}
@@ -160,8 +160,8 @@ function rowHtml(r){
       <div class="chips">${(r.tags||[]).slice(0,5).map(t=>`<span class="chip-t" data-tag="${esc(t)}">${esc(t)}</span>`).join('')}</div>
     </td>
     <td class="t-src">${(r.url&&r.url.indexOf('https://github.com/')===0)?`<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.canon||'')}</a>`:esc(r.canon||'—')}</td>
-    <td class="num">${r.owners??'—'}</td>
-    <td class="risk-${r.risk||'none'}">${r.risk||'none'}</td>
+    <td class="num">${esc(String(r.owners??'—'))}</td>
+    <td class="risk-${/^(none|low|medium|high)$/.test(r.risk)?r.risk:'none'}">${esc(r.risk||'none')}</td>
     <td class="t-desc">${esc((r.description||'').slice(0,160))}</td>
   </tr>`;
 }
