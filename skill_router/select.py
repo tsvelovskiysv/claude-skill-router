@@ -80,7 +80,8 @@ def select(facets, target=45, k_per_facet=150, lam=0.75, min_rating=5.0,
         return []
 
     cfacet = best_facet[cand]
-    rel = _norm01(best_raw[cand] * weights[cfacet])
+    # релевантность = СЫРАЯ близость×вес (без min-max: он раздувал мелкие разницы косинусов)
+    rel = best_raw[cand] * weights[cfacet]
     rating = np.array([(meta[i].get("rating") or 0) for i in cand], dtype=np.float32) / 10.0
     inst = np.array([math.log10((meta[i].get("installs") or 0) + 1) for i in cand], dtype=np.float32)
     inst = _norm01(inst)
