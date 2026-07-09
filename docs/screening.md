@@ -90,6 +90,20 @@ raw comparison misses:
 3. **The rating gate.** Selection draws only from the rating ≥ 5 pool (~9.6k
    skills) — anonymous junk and one-off dumps don't reach routing at all.
 
+## What static screening does *not* catch
+
+Be clear-eyed about the threat model: **regex screening stops commodity and
+lazy malware, not a motivated, targeted attacker.** Known evasions exist and
+some get past layer 1 — a dropper described in prose ("download `helper.sh` and
+run it"), multi-stage decoding (base64 to a file on one line, execute it on
+another), and interpreter one-liners that fetch-and-exec are the obvious ones.
+This client hardens against exactly those three (they're covered by the scanner
+and its tests), but the general point stands: an attacker who studies the rules
+can route around them. And because the layer-2 LLM audit only fires on skills
+that layer 1 already flagged, **a payload that evades layer 1 is never seen by
+layer 2 either.** Closing that gap needs a full-body audit of *every* skill, not
+just flagged ones — that's the opt-in per-skill LLM re-audit on the roadmap.
+
 ## What you still have to trust
 
 Honest limits: SHA-256 pinning guarantees the body you install is byte-identical

@@ -312,6 +312,16 @@ Two environment variables override defaults: `CLAUDE_SKILL_ROUTER_DATA` (cache d
 
 **Uninstall:** `pipx uninstall claude-skill-router`, delete the cache directory above, and remove `.claude/skills/` from projects where you installed skills.
 
+**Corporate / offline networks:** first run needs outbound HTTPS to GitHub (catalog releases + body fetches) and HuggingFace (the embedding model, once). Behind a proxy or an allowlist that blocks these, the tool won't self-provision — this is not designed for air-gapped or Nexus-only environments.
+
+---
+
+## Catalog coverage
+
+The catalog mirrors the open-source skill ecosystem, and that ecosystem is **web- and Python-heavy**. Concretely, of the ~9.6k skills in the rating ≥ 5 pool: React/Next/JS ≈ 770, Python ≈ 240, but Java/Spring ≈ 130, Go ≈ 95, C#/.NET ≈ 45. So the router shines on **web / Python / TypeScript** projects and is comparatively thin for **Java/Spring, C#, and other enterprise-backend stacks** — not a tool limitation, just where skills are being written today.
+
+That said, roughly **80% of the catalog is stack-neutral** — methodology, design, docs, security, testing, working-with-agents — and useful on any stack. Even on a language the catalog is thin for, expect a solid set of general-purpose skills and only a few language-specific ones.
+
 ---
 
 ## Roadmap
@@ -320,6 +330,7 @@ Two environment variables override defaults: `CLAUDE_SKILL_ROUTER_DATA` (cache d
 - **Delta catalog updates** — incremental releases instead of full index pulls.
 - Optional **offline / local re-ranking** mode with no LLM dependency.
 - **Shared team profiles** — commit a project's facet/skill set for reproducible onboarding.
+- **Opt-in per-skill LLM re-audit** (`--deep-audit`) — a full-body audit of a chosen skill on your machine, for when regex screening isn't enough (needs an API key).
 - Editor integration (VS Code) for one-click routing.
 - Expanded community trust signals feeding the rating.
 

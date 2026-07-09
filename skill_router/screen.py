@@ -91,6 +91,48 @@ RE_NEGATION = re.compile(
     r"\b(?:do\s+not|don[’']?t|never|avoid|must\s+not|instead\s+of|"
     r"not\s+recommended|rather\s+than)\b", re.I)
 
+# --- обходы, найденные внешним аудитом (targeted, не commodity) ---
+
+# 1. дроппер прозой: «download helper.sh … and run it» — без curl|bash в строку.
+# Требуем И скачивание скрипта, И ПЕРЕХОДНЫЙ глагол исполнения, указывающий на скачанное
+# (run it / execute the script / ./that), а не голое слово «run» (иначе ловит «between runs»,
+# «clean run», «source code»).
+_RUN_OBJ = (r"(?:run|execute|exec|launch|invoke)\s+"
+            r"(?:it|this|that|them|the\s+(?:script|file|installer|binary|payload|above|downloaded\s+\w+))\b"
+            r"|(?:bash|sh|zsh|\./)\s*[\w./-]+\.(?:sh|ps1|py|bat|cmd|rb|pl)\b")
+RE_PROSE_DROP = re.compile(
+    r"(?:download|fetch|grab|retrieve|curl|wget)\b[^\n]{0,120}"
+    r"\b[\w./-]+\.(?:sh|ps1|py|bat|cmd|rb|pl)\b[^\n]{0,200}"
+    r"(?:" + _RUN_OBJ + r")"
+    r"|\b[\w./-]+\.(?:sh|ps1|py|bat|cmd|rb|pl)\b[^\n]{0,120}"
+    r"\b(?:download|fetch|grab|retrieve)\b[^\n]{0,80}(?:" + _RUN_OBJ + r")",
+    re.I)
+
+# 2. двухступенчатый base64: декод В ФАЙЛ, затем запуск этого файла отдельной строкой.
+#    base64 -d ... > out.sh   +   позже   bash out.sh
+RE_B64_TO_FILE = re.compile(
+    r"\b(?:base64\s+(?:-d|--decode)|xxd\s+-r)\b[^\n]{0,80}>\s*([\w./-]+)", re.I)
+
+# 3. интерпретатор -c/-e со скачиванием и исполнением в одном вызове:
+#    python -c "...urlopen(...).read()...exec(...)", node -e "...fetch(...)...eval(..."
+RE_INTERP_FETCH_EXEC = re.compile(
+    r"\b(?:python[23]?|node|ruby|perl)\b[^\n]{0,10}(?:-c|-e)\b[^\n]{0,400}"
+    r"(?:urlopen|urlretrieve|requests\.get|urllib|fetch\s*\(|net/http|open-uri|https?://)"
+    r"[^\n]{0,400}(?:\bexec\s*\(|\beval\s*\(|\bexecfile\b|Function\s*\(|\bsystem\s*\(|`)",
+    re.I)
+
+
+def _b64_to_file_then_run(text):
+    """decode→файл на одной строке, запуск того же файла — на другой."""
+    for m in RE_B64_TO_FILE.finditer(text):
+        fname = re.escape(m.group(1).strip())
+        # тот же файл позже исполняется: bash out.sh / sh out.sh / ./out.sh / python out.py
+        run = re.compile(r"(?:bash|sh|zsh|python[23]?|node|ruby|perl|\./)\s*[\"']?"
+                         + fname + r"\b", re.I)
+        if run.search(text):
+            return True
+    return False
+
 
 def _ip_is_public(host):
     try:
@@ -117,7 +159,9 @@ def _destructive(text):
 def _obfuscated(text):
     if RE_B64_EXEC_PIPE.search(text):
         return True
-    return bool(RE_FROMBASE64.search(text) and RE_IEX_WORD.search(text))
+    if RE_FROMBASE64.search(text) and RE_IEX_WORD.search(text):
+        return True
+    return _b64_to_file_then_run(text)          # двухступенчатый base64 (обход из аудита)
 
 
 def _ip_dropper(text):
@@ -132,6 +176,14 @@ def _pipe_shell(text):
     return any(not _negated(text, m.start()) for m in RE_PIPE_SHELL.finditer(text))
 
 
+def _fetch_exec(text):
+    """скачивание+исполнение, разнесённое по прозе/строкам (обходы из аудита)."""
+    for m in RE_PROSE_DROP.finditer(text):
+        if not _negated(text, m.start()):
+            return True
+    return bool(RE_INTERP_FETCH_EXEC.search(text))
+
+
 def verdict(body):
     """bytes/str тела → ('hard'|'review', flag_id) или (None, None) если чисто."""
     text = body.decode("utf-8", "replace") if isinstance(body, (bytes, bytearray)) else body
@@ -143,6 +195,8 @@ def verdict(body):
         return "hard", "ip_dropper"
     if _pipe_shell(text):
         return "review", "pipe_to_shell"
+    if _fetch_exec(text):
+        return "review", "fetch_exec"
     if RE_EXFIL.search(text):
         return "review", "exfiltration"
     if _destructive(text):
