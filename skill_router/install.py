@@ -2,8 +2,9 @@
 
 Безопасность: (1) hard_block (malware) не ставится; (2) SHA-256 тела сверяется с каталогом
 — несовпадение ИЛИ отсутствие sha в каталоге → пропуск (fail-closed, неаудированное тело
-не ставим); (3) имя скилла и пути пакета валидируются от path-traversal. Тела нигде не
-тиражируются — берутся из первоисточника, поэтому вредонос не распространяется.
+не ставим); (3) скачанное тело перепроверяется ЛОКАЛЬНЫМ слоем-1 (screen.py) перед записью
+— независимо от каталога; (4) имя скилла и пути валидируются от path-traversal. Тела нигде
+не тиражируются — берутся из первоисточника, поэтому вредонос не распространяется.
 """
 import os
 import io
@@ -14,6 +15,8 @@ import base64
 import hashlib
 import urllib.request
 import urllib.error
+
+from . import screen
 
 CONTENTS_API = "https://api.github.com/repos/{repo}/contents/{path}"
 _BAD_NAME = re.compile(r'[\\/:*?"<>|]')
@@ -77,6 +80,7 @@ def install(project, selection, base_names=None, token=None, allow_changed=False
     root = os.path.normpath(skills_dir)
 
     installed, blocked, changed, invalid, flagged, failed, no_sha = [], [], [], [], [], [], []
+    screened = []
     rate_limited = False
     for it in selection:
         name = _safe_name(it.get("name"))
@@ -100,6 +104,11 @@ def install(project, selection, base_names=None, token=None, allow_changed=False
         real_sha = hashlib.sha256(body).hexdigest()
         if cat_sha and real_sha != cat_sha and not allow_changed:
             changed.append(name); continue           # тело изменилось с момента аудита
+
+        # локальный слой-1: не доверяем каталогу вслепую — перепроверяем тело сами
+        sev, flag = screen.verdict(body)
+        if sev is not None:
+            screened.append((name, flag)); continue
 
         dest = os.path.normpath(os.path.join(skills_dir, name))
         if not (dest == root or dest.startswith(root + os.sep)):
@@ -131,4 +140,4 @@ def install(project, selection, base_names=None, token=None, allow_changed=False
 
     return {"installed": installed, "blocked": blocked, "changed": changed,
             "invalid": invalid, "flagged": flagged, "failed": failed,
-            "no_sha": no_sha, "rate_limited": rate_limited}
+            "no_sha": no_sha, "screened": screened, "rate_limited": rate_limited}

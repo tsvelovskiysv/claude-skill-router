@@ -59,6 +59,20 @@ Confirmed malware can never be selected, fetched, or installed — the client
 filters `hard_block` both at selection and at install time, and there is no CLI
 flag to bypass it (or the SHA check).
 
+### Client-side re-scan (independent of the catalog)
+
+The layer-1 rules also run **inside the client**, on your machine, on every body
+it fetches — after the SHA check, before the body touches disk
+(`skill_router/screen.py`). A hard-pattern match refuses the install even if the
+catalog said the skill was clean. This is deliberately not just trust in the
+published catalog: it defends against a catalog that is stale, buggy, or
+compromised, and against any skill that passed layer 1 without ever reaching a
+layer-2 human/LLM audit. It's a regex scan — cheap, offline, deterministic — so
+it costs nothing per install and needs no API key. (A heavier, opt-in per-skill
+LLM re-audit for the truly cautious is on the roadmap; it is not the default,
+because a repeated LLM pass on every install would need an API key and re-derive
+a verdict the catalog already carries.)
+
 ## "Why only 41 hard-blocked out of 65k, when audits report ~12% malicious?"
 
 Different populations. The widely-cited **12%** figure comes from an audit of

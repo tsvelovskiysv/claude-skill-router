@@ -99,7 +99,7 @@ The router is a five-stage funnel that narrows 65k candidates down to ~45 skills
 
 4. **Diverse selection.** Runs **MMR (Maximal Marginal Relevance)** with **per-facet quotas** and **near-duplicate removal**, yielding **~45 diverse skills that cover every facet** — instead of 25 near-identical React skills crowding out everything else.
 
-5. **Safe install.** Fetches each chosen skill's `SKILL.md` body **on-demand from its source GitHub repo**, verified with **SHA-256**. Bodies are **never redistributed** by this project (see [Security model](#security-model)).
+5. **Safe install.** Fetches each chosen skill's `SKILL.md` body **on-demand from its source GitHub repo**, verified with **SHA-256**, then **re-scanned locally** for malware patterns before it is written to disk. Bodies are **never redistributed** by this project (see [Security model](#security-model)).
 
 ---
 
@@ -203,6 +203,8 @@ Skill marketplaces are a real supply-chain surface: skills are executable instru
 **Layer 2 — Isolated LLM audit (at catalog build time).** Any skill that trips a static flag is reviewed by an **isolated LLM audit** during catalog construction — its body is examined in a sandboxed prompt for malicious behavior. Skills still awaiting that audit are marked `needs_review`/`needs_audit` in the catalog, and this client **excludes them from selection and never installs them**.
 
 **Layer 3 — Hard-block.** Confirmed-malicious skills are **hard-blocked** and can never be selected, fetched, or installed. **41 known-malicious skills are currently blocked.** During catalog construction we found and quarantined real, live malware — including **ClawHavoc**, which shipped C2 (command-and-control) server addresses inside skill bodies.
+
+**Client-side re-scan.** The catalog isn't trusted blindly. When you install a skill, the fetched body is run through the layer-1 static screen **again, locally on your machine**, before anything is written to disk — a body carrying a hard malware pattern (obfuscated exec, password archive, IP dropper) is refused even if the catalog marked it clean. This is independent of the build pipeline: it defends against a catalog that's wrong, out of date, or compromised.
 
 **Distribution guarantee — no redistribution.** The catalog this project ships contains **metadata and embeddings only** — names, tags, ratings, categories, vectors. It **never contains skill bodies.** When you install a skill, its `SKILL.md` body is fetched **on-demand from the original GitHub repo** and verified against a stored **SHA-256** hash.
 

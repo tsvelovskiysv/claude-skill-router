@@ -135,6 +135,9 @@ def _route(project, about, do_install, top=45):
           + ui.dim(f" → {os.path.join(project, '.claude', 'skills')}"))
     if res["blocked"]:
         print(ui.red(f"⛔ blocked (malware): ") + ", ".join(res["blocked"]))
+    if res["screened"]:
+        print(ui.red(f"⛔ blocked by local scan: ")
+              + ", ".join(f"{n} ({fl})" for n, fl in res["screened"]))
     if res["flagged"]:
         print(ui.yellow(f"● skipped (needs audit): ") + ", ".join(res["flagged"]))
     if res["changed"]:
@@ -249,7 +252,10 @@ def _install_named(project, names):
     res = install_mod.install(project, rows, token=token)
     print(f"installed: {len(res['installed'])}; blocked: {len(res['blocked'])}; "
           f"flagged: {len(res['flagged'])}; changed: {len(res['changed'])}; "
-          f"no_sha: {len(res['no_sha'])}")
+          f"no_sha: {len(res['no_sha'])}; local_scan: {len(res['screened'])}")
+    if res["screened"]:
+        print("blocked by local scan: "
+              + ", ".join(f"{n} ({fl})" for n, fl in res["screened"]), file=sys.stderr)
     if res.get("rate_limited") and not token:
         print("GitHub API rate limit hit — set GITHUB_TOKEN to raise it.", file=sys.stderr)
     return 0
