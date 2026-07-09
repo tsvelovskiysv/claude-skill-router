@@ -14,13 +14,15 @@
 
 </div>
 
-Semantic routing for Claude Code Agent Skills over a catalog of **65,000+ real `SKILL.md` files**, mined and deduplicated from **~2,400 GitHub repos**. Point it at a repo; it figures out what the project actually needs, ranks candidates by an honest trust score, screens them for malware, and installs a diverse set that covers every facet — not 25 near-identical React skills.
+Semantic routing for Claude Code Agent Skills over a catalog of **65,000+ real `SKILL.md` files**, mined and deduplicated from **~2,300 GitHub repos**. Point it at a repo; it figures out what the project actually needs, ranks candidates by an anti-bulk trust rating, screens them for malware, and installs a diverse set that covers every facet — not 25 near-identical React skills.
 
 ---
 
 ## What is this
 
-`claude-skill-router` is a **semantic router** for [Claude Code](https://docs.claude.com/en/docs/claude-code) Agent Skills. Instead of making you browse a registry and hand-pick skills, it reads your project, decomposes it into weighted *facets* (frontend, forms, animations, security, testing, database, scraping, …), and retrieves the best-matching skills by **meaning**, not keywords.
+**Agent Skills** are `SKILL.md` instruction files that teach [Claude Code](https://docs.claude.com/en/docs/claude-code) how to do specific tasks — Claude loads a skill automatically when it becomes relevant to what you're working on (see the [Skills docs](https://docs.claude.com/en/docs/claude-code/skills)). Thousands of them are published on GitHub; the problem is finding the ones *your* project needs and trusting what you install.
+
+`claude-skill-router` is a **semantic router** for those skills. Instead of making you browse a registry and hand-pick, it reads your project, decomposes it into weighted *facets* (frontend, forms, animations, security, testing, database, scraping, …), and retrieves the best-matching skills by **meaning**, not keywords.
 
 The catalog is a large, deduplicated index of skills harvested from the open-source ecosystem — with a **trust rating** that resists the usual gaming, and a **security model** that never redistributes untrusted code. You get per-project relevance, ranked by trust, checked for malware.
 
@@ -31,23 +33,47 @@ The catalog is a large, deduplicated index of skills harvested from the open-sou
 ## Quick start
 
 ```bash
-pipx install claude-skill-router
+pipx install git+https://github.com/tsvelovskiysv/claude-skill-router
 ```
 
-Then, from inside any project:
+*(PyPI release coming soon — until then, install from GitHub as above.)*
+
+Then, from inside any project, see what it *would* pick — a dry run, nothing installed:
 
 ```bash
 cd my-project
+skill-router select .
+```
+
+```text
+Detected stack:  python   frameworks: —
+Facets (stack fallback, 2):
+   1.0  python
+   0.5  testing quality
+project stack (foreign excluded): js, python
+
+Skills to install (45) across 2 facets:
+  · python (43)
+    1. python-executor      halt-catch-fire/skills   rel 0.691
+    2. claude-api           anthropics/skills        rel 0.659
+    3. fastapi-python       mindrally/skills         rel 0.680
+    ...
+  · testing quality (2)
+   44. requesting-code-review  obra/superpowers      rel 0.328
+   45. ab-testing           coreyhaines31/marketingskills
+
+(dry-run — nothing installed. Run `skill-router .` to install.)
+```
+
+Happy with the set? Run the full pipeline:
+
+```bash
 skill-router .
 ```
 
-That single command runs the full pipeline: detect the stack → build facets → semantic recall → diverse selection → install. **Nothing to set up manually** — on first run it auto-downloads the catalog + semantic index from GitHub Releases and the embedding model, then caches everything. Just install and run.
+That single command does detect the stack → build facets → semantic recall → diverse selection → install. **Nothing to set up manually** — on first run it auto-downloads the catalog + semantic index from GitHub Releases and the embedding model, then caches everything.
 
-Want to see what it *would* pick, without installing?
-
-```bash
-skill-router select .
-```
+> **Tip:** set `GITHUB_TOKEN` before your first install — anonymous GitHub API access is limited to 60 requests/hour, and one full install (~45 skills) nearly exhausts it (see [Requirements](#requirements)).
 
 ---
 
@@ -77,29 +103,83 @@ The router is a five-stage funnel that narrows 65k candidates down to ~45 skills
 
 ---
 
+## Examples
+
+Real output, different stacks — note how the facets, the picked skills, and the foreign-stack exclusions change with the project.
+
+**A Next.js app** (`package.json` with `next`, `react`, `tailwindcss`, `prisma`, `stripe`):
+
+```text
+Detected stack:  nextjs   frameworks: prisma, tailwind
+Facets (stack fallback, 6):
+   1.0  prisma
+   1.0  tailwind
+   1.0  frontend next.js react
+   0.7  ui ux design visual
+   0.5  animations motion transitions
+   0.5  testing quality
+project stack (foreign excluded): js, stripe
+
+Skills to install (45) across 6 facets:
+  · tailwind (11)
+    1. tailwind-design-system        wshobson/agents            rel 0.757
+    2. tailwind-css-patterns         giuseppe-trisciuoglio/…    rel 0.770
+    3. tailwind-v4-shadcn            secondsky/claude-skills    rel 0.720
+    ...
+  · frontend next.js react (15)
+    1. vercel-react-best-practices   vercel-labs/agent-skills   rel 0.692
+    2. nextjs-app-router-patterns    wshobson/agents            rel 0.699
+    ...
+  · ui ux design visual …   · animations motion transitions …   · testing quality …
+```
+
+`stripe` stays in the allowed set because it's actually in `package.json` — a Stripe skill would be kept, while a Shopify or Salesforce skill would be excluded as a product this project doesn't use. Skills named after foreign languages (`golang-*`, `azure-*`) are dropped entirely.
+
+**A Python backend** (`requirements.txt` with `fastapi`):
+
+```text
+Detected stack:  python
+Facets (stack fallback, 2):
+   1.0  python
+   0.5  testing quality
+project stack (foreign excluded): js, python
+
+Skills to install (45) across 2 facets:
+  · python (43)
+    1. python-executor      halt-catch-fire/skills   rel 0.691
+    2. claude-api           anthropics/skills        rel 0.659
+    3. fastapi-python       mindrally/skills         rel 0.680
+    4. async-python-patterns  wshobson/agents        rel 0.660
+    ...
+```
+
+The stack-fallback facets above come from project files alone. For sharper facets, add a `.claude/skills-facets.json` (see [How it works](#how-it-works)) — e.g. ask Claude Code to describe the project in 8–15 weighted facets — and the same command routes against those instead.
+
+---
+
 ## Comparison
 
 There are three sensible tools in this space. Here's an honest look at all three:
 
 | | **claude-skill-router** | **autoskills** (midudev) | **skills.sh** (Vercel) |
 |---|---|---|---|
-| **Install** | `pipx install claude-skill-router` | `npx autoskills` | `npx skills add owner/repo` |
+| **Install** | `pipx install git+…` (GitHub) | `npx autoskills` | `npx skills add owner/repo` |
 | **Runtime** | Python CLI | Ruby CLI | Hosted web + `npx` |
-| **Catalog** | 65k skills / ~2.4k repos, deduped | ~40 curated stacks | ~900k indexed (~9.6k with install telemetry) |
+| **Catalog** | 65k skills / ~2.3k repos, deduped | ~40 curated stacks | ~900k indexed (~9.6k with install telemetry) |
 | **Matching** | Semantic embeddings + per-project facets | Keyword / stack detection | Manual browse + leaderboard |
-| **Trust ranking** | Honest anti-bulk rating (0–10) | None | Install-count leaderboard |
+| **Trust ranking** | Anti-bulk rating (0–10) | None | Install-count leaderboard |
 | **Per-project routing** | Yes — facets + MMR diverse selection | Partial — stack match | No — you pick manually |
-| **Security** | 3-layer + isolated LLM audit + hard-block | SHA verify on download | Snyk / Socket audits |
+| **Security** | 3-layer screening + hard-block | SHA verify on download | Snyk / Socket audits |
 | **Body handling** | On-demand fetch from origin, SHA-256 verify | Downloads needed files, SHA verify | Adds from source repo |
-| **Footprint** | Heavier (~130 MB index, Python) | Lightweight, no index | Hosted service |
+| **Footprint** | Heavier (~100 MB index, Python) | Lightweight, no index | Hosted service |
 
-### Where each one wins — candid when-to-use
+### When to use which
 
-- **Use `autoskills` when** you want the *simplest possible* one-command install for a common stack, with no local data and no Python. It's dead simple, lightweight, and more plug-and-play than this tool. If your need is "install the usual React/Next skills, now," it's hard to beat.
+- **Use `autoskills` when** you want the simplest possible one-command install for a common stack, with no local data and no Python. If your need is "install the usual React/Next skills, now," it's the fastest path.
 
-- **Use `skills.sh` when** you want to **browse sheer volume** with live install telemetry and a leaderboard, backed by Vercel. It's by far the largest index. Caveats: install-count ranking is **gameable**, there's **no per-project routing** (you select skills yourself), and an independent audit found **~12% of audited skills malicious** — treat the leaderboard as popularity, not safety.
+- **Use `skills.sh` when** you want to **browse sheer volume** with live install telemetry and a leaderboard, backed by Vercel. It's by far the largest index. Caveats: install-count ranking is **gameable**, there's **no per-project routing** (you select skills yourself), and independent audits of the agent-skill ecosystem have found a meaningful malicious share — [one audit of 2,857 skills flagged ~12% as malicious](https://grith.ai/blog/agent-skills-supply-chain), and [Snyk's ToxicSkills study](https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/) confirmed 76 malicious payloads across ClawHub and skills.sh. Treat the leaderboard as popularity, not safety.
 
-- **Use `claude-skill-router` when** you want **semantic, per-project matching with an honest trust ranking and a real safety model** — a non-trivial repo where you'd rather get ~45 diverse skills that genuinely cover its facets than scroll a registry. **Honest trade-offs:** it's heavier (a ~130 MB index and a Python install, not a single `npx`), freshness depends on periodic **catalog rebuilds**, and it's **less plug-and-play** than `autoskills`.
+- **Use `claude-skill-router` when** you want **semantic, per-project matching with a trust ranking and a real safety model** — a non-trivial repo where you'd rather get ~45 diverse skills that genuinely cover its facets than scroll a registry. **Trade-offs:** it's heavier (a ~100 MB index and a Python install, not a single `npx`), freshness depends on periodic **catalog rebuilds**, and it's **less plug-and-play** than `autoskills`.
 
 No tool dominates. Pick by whether you value *simplicity* (autoskills), *volume* (skills.sh), or *semantic per-project matching + trust + safety* (this).
 
@@ -107,14 +187,10 @@ No tool dominates. Pick by whether you value *simplicity* (autoskills), *volume*
 
 ## Features
 
-- **Semantic search over 65k skills.** Embeddings-based retrieval (`BAAI/bge-small-en`) understands intent, not just tokens or stack strings.
-- **Per-project facet routing.** Your repo becomes 8–15 weighted facets, and skills are selected to cover all of them.
-- **Diverse selection (MMR).** Per-facet quotas + near-duplicate removal produce a broad, non-redundant set — every need covered, no clones.
-- **Honest, anti-bulk trust rating (0–10).** Computed from **unique copies across distinct owners**, **repo stars**, and **real install counts** (skills.sh telemetry), with **anti-bulk logic** so a 10k-skill dump repo can't inflate all of its skills at once. Popularity of a *repo* ≠ trust in each *skill*.
-- **Structured taxonomy.** Skills organized into **7 groups × 22 categories** with canonical tags for predictable filtering and browsing.
-- **3-layer security** — static screening, an isolated LLM audit at catalog build time, and a **hard-block** list of confirmed malware (see below).
-- **On-demand, verified body fetch.** Skill code is pulled from origin with SHA-256 verification and **never redistributed** — malware can't propagate through this project.
-- **Auto-update channel.** `skill-router update` pulls the latest catalog + semantic index from GitHub Releases.
+- **Anti-bulk trust rating (0–10).** Computed from **unique copies across distinct owners**, **repo stars**, and **real install counts** (skills.sh telemetry) — with anti-bulk logic so a 10k-skill dump repo can't inflate all of its skills at once. Popularity of a *repo* ≠ trust in each *skill*.
+- **Structured taxonomy.** Skills organized into **7 groups × 22 categories** with canonical tags for predictable filtering and browsing (`skill-router ui`).
+- **Cross-platform.** Windows, macOS, and Linux are all first-class (path handling, console encoding, per-OS cache locations).
+- **No telemetry.** The tool phones nobody; see [Network & privacy](#security-model).
 
 ---
 
@@ -130,7 +206,11 @@ Skill marketplaces are a real supply-chain surface: skills are executable instru
 
 **Distribution guarantee — no redistribution.** The catalog this project ships contains **metadata and embeddings only** — names, tags, ratings, categories, vectors. It **never contains skill bodies.** When you install a skill, its `SKILL.md` body is fetched **on-demand from the original GitHub repo** and verified against a stored **SHA-256** hash.
 
-> **What this means:** catalog metadata is safe to distribute and update freely. Bodies always come **from origin**, verified. Because untrusted code is never redistributed and known malware is hard-blocked, **this project cannot become a malware propagation vector** — the worst case is that origin content changed, which the SHA check catches.
+> **What this means:** catalog metadata is safe to distribute and update freely. Bodies always come **from origin**, verified. Because untrusted code is never redistributed and known malware is hard-blocked, **this project is designed not to become a malware propagation vector**: a skill body that changed after cataloguing fails the SHA check and is skipped, and a record with no SHA is skipped too (fail-closed).
+
+**What `install` actually touches.** For each installed skill the tool creates `<project>/.claude/skills/<name>/SKILL.md`, and adds an entry for it to `skillOverrides` in `<project>/.claude/settings.json` (mode `name-only`). Nothing else in `settings.json` is modified; if the file is invalid JSON, the original is preserved as a timestamped `.bak` before being rebuilt.
+
+**Network & privacy.** The tool makes exactly three kinds of network requests: GitHub Releases (catalog updates), the GitHub Contents API (skill bodies at install time), and a one-time HuggingFace download of the embedding model. Your project is embedded **locally**; no code, telemetry, or usage data ever leaves your machine.
 
 ---
 
@@ -141,24 +221,34 @@ Skill marketplaces are a real supply-chain surface: skills are executable instru
 skill-router .
 
 # Routing only — print the ~45 chosen skills for this project, install nothing (dry run)
-skill-router select .
+skill-router select .                 # --about "text" adds a project description to faceting
 
 # Install specific skills by name (on-demand fetch from origin + SHA-256 verify)
-skill-router install <skill-name> [<skill-name> ...]
+skill-router install <skill-name> ...  # -p/--project <dir> targets another project (default: .)
 
 # Pull the latest catalog + semantic index from GitHub Releases
-skill-router update
+skill-router update                   # --force re-downloads even if the version matches
 
 # Open the catalog in your browser — search, filter by category / tag / risk, sort
-skill-router ui
+skill-router ui                       # --no-open starts the server without opening a browser
 ```
 
-### Browse the catalog
+### Browse the catalog (`skill-router ui`)
 
-`skill-router ui` launches a local dashboard (localhost, 127.0.0.1 only) over the full
-65k catalog: search, sort by rating / stars / installs, filter by **category** (7 groups ×
-22 categories), **tag**, risk, and min rating. Great for exploring what's out there before
-routing a project.
+```bash
+skill-router ui              # starts a local server and opens your browser
+skill-router ui --no-open    # server only — open http://127.0.0.1:8765 yourself
+```
+
+A local dashboard (**localhost only** — the server binds to `127.0.0.1` and validates the `Host` header) over the full 65k catalog. Each row shows the trust rating, repo stars, skills.sh install count, category, tags, source repo, and risk level:
+
+![Skill catalog dashboard — 65,425 skills with ratings, stars, installs, tags and risk](assets/ui-dashboard.png)
+
+Search matches names, source repos, and descriptions; combine it with the category dropdown, tag filter, risk filter, minimum rating, and the "hide malware" toggle. Click any column to sort, click a tag to filter by it:
+
+![Searching the catalog — "react components" narrows 65k skills to 106](assets/ui-search.png)
+
+Great for exploring what's out there before routing a project, or for cherry-picking single skills to install by name.
 
 ---
 
@@ -182,15 +272,27 @@ Because releases carry **metadata and embeddings only** (never skill bodies), up
 
 ## Requirements
 
-- **Python 3.10+** (install via `pipx` recommended).
-- **~130 MB semantic index**, downloaded on first run and cached locally.
-- The embedding model (`BAAI/bge-small-en`) is downloaded once on first use.
+- **Python 3.10+** (install via `pipx` recommended). **Windows, macOS, and Linux** are supported.
+- **~100 MB catalog + semantic index**, downloaded on first run and cached locally.
+- The embedding model (`BAAI/bge-small-en`, ~65 MB) is downloaded once on first use from HuggingFace.
 - Network access to GitHub (for `update` and for on-demand body fetches).
 - **`GITHUB_TOKEN` recommended.** Body fetches use the GitHub API, which allows only **60 anonymous requests/hour** — one full install (~45 skills) nearly exhausts it. Set `GITHUB_TOKEN` (any classic token, no scopes needed) to raise the limit to 5,000/hour:
 
   ```bash
   export GITHUB_TOKEN=ghp_...        # or GH_TOKEN
   ```
+
+### Where data lives
+
+| OS | Cache location |
+|---|---|
+| Windows | `%LOCALAPPDATA%\claude-skill-router` |
+| macOS | `~/Library/Application Support/claude-skill-router` |
+| Linux | `$XDG_DATA_HOME/claude-skill-router` (default `~/.local/share/…`) |
+
+Two environment variables override defaults: `CLAUDE_SKILL_ROUTER_DATA` (cache directory) and `CLAUDE_SKILL_ROUTER_REPO` (GitHub repo the catalog releases are pulled from).
+
+**Uninstall:** `pipx uninstall claude-skill-router`, delete the cache directory above, and remove `.claude/skills/` from projects where you installed skills.
 
 ---
 
@@ -202,6 +304,12 @@ Because releases carry **metadata and embeddings only** (never skill bodies), up
 - **Shared team profiles** — commit a project's facet/skill set for reproducible onboarding.
 - Editor integration (VS Code) for one-click routing.
 - Expanded community trust signals feeding the rating.
+
+---
+
+## Contributing & changelog
+
+Issues and PRs are welcome. The catalog build pipeline (mining, clustering, rating, security screening) lives in a separate private repository; this repo contains the client and receives the published catalog through Releases. Changes ship as [GitHub Releases](https://github.com/tsvelovskiysv/claude-skill-router/releases) — release notes double as the changelog.
 
 ---
 

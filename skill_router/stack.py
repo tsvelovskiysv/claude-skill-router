@@ -52,7 +52,8 @@ def iter_files(project_dir, max_files=50000):
 
 def _js_stack(pj_path, found, frameworks):
     try:
-        data = json.loads(io.open(pj_path, encoding="utf-8").read())
+        # utf-8-sig: package.json с BOM (частое на Windows) иначе молча отбрасывается
+        data = json.loads(io.open(pj_path, encoding="utf-8-sig").read())
     except Exception:
         return
     deps = {**(data.get("dependencies") or {}), **(data.get("devDependencies") or {})}

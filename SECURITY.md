@@ -1,7 +1,8 @@
 # Security
 
 Skills are executable instructions. Public skill catalogs contain malware. This
-project is built so it **cannot become a malware propagation vector**.
+project is designed so that it **does not redistribute untrusted code** and known
+malware is never installed through it.
 
 ## What the shipped catalog contains
 
@@ -23,14 +24,27 @@ canon repo + path, SHA-256 hashes, vectors. **No skill bodies are ever shipped.*
 ## Install-time guarantees
 
 - `hard_block` skills are never fetched or installed.
-- `needs_review` / `needs_audit` skills are skipped until audited.
+- `needs_review` / `needs_audit` skills are excluded from selection and never installed.
 - Bodies are fetched **from the origin GitHub repo** and verified against the
   catalog's stored SHA-256. If the origin changed since cataloguing, the SHA
-  mismatches and install is skipped (use `--force` to override consciously).
-- Skill names and package paths are validated against path traversal.
+  mismatches and the install is skipped. A catalog record without a SHA is
+  skipped too (fail-closed). There is no CLI flag to bypass verification.
+- Skill names and package paths are validated against path traversal
+  (including Windows reserved names).
+- The `ui` dashboard binds to `127.0.0.1` only and validates the `Host` header
+  against DNS rebinding.
+
+## Supported versions
+
+Only the latest release receives security fixes. The catalog itself updates
+independently of the client via `skill-router update`.
 
 ## Reporting
 
 Found a malicious skill that slipped through, or a security issue in the tool?
-Open a private security advisory on the repository. Do not file a public issue
-with a working exploit payload.
+Open a **private security advisory**:
+[Security → Advisories → Report a vulnerability](https://github.com/tsvelovskiysv/claude-skill-router/security/advisories/new).
+Do not file a public issue with a working exploit payload.
+
+You can expect an initial response within **7 days**. Confirmed malicious skills
+are hard-blocked in the next catalog release.

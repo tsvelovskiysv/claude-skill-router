@@ -22,6 +22,11 @@
       <stop offset="0" stop-color="#3b82f6" stop-opacity="0.20"/>
       <stop offset="1" stop-color="#3b82f6" stop-opacity="0"/>
     </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fde68a"/>
+      <stop offset="0.55" stop-color="#f5c33b"/>
+      <stop offset="1" stop-color="#d4920a"/>
+    </linearGradient>
   </defs>
 
   <!-- фон -->
@@ -35,20 +40,26 @@
 
   <!-- заголовок с градиентом и свечением -->
   <g filter="url(#glow)">
-    <text x="400" y="158" text-anchor="middle" font-size="82" font-weight="800"
+    <text x="400" y="142" text-anchor="middle" font-size="82" font-weight="800"
           letter-spacing="6" fill="url(#title)">SKILL ROUTER</text>
   </g>
 
   <!-- акцентная линия -->
-  <rect x="230" y="188" width="340" height="2.5" rx="1.25" fill="url(#accent)"/>
+  <rect x="230" y="168" width="340" height="2.5" rx="1.25" fill="url(#accent)"/>
+
+  <!-- золотой счётчик каталога -->
+  <g filter="url(#glow)">
+    <text x="400" y="212" text-anchor="middle" font-size="36" font-weight="800"
+          letter-spacing="3" fill="url(#gold)">65,425 SKILLS</text>
+  </g>
 
   <!-- терминальная строка -->
-  <text x="400" y="228" text-anchor="middle" font-size="19"
+  <text x="400" y="248" text-anchor="middle" font-size="18"
         font-family="'SFMono-Regular', Consolas, 'Liberation Mono', monospace">
     <tspan fill="#64748b">$ </tspan><tspan fill="#27c93f">skill-router .</tspan>
   </text>
 
   <!-- тэглайн -->
-  <text x="400" y="262" text-anchor="middle" font-size="15" letter-spacing="0.5"
-        fill="#94a3b8">semantic router for Claude Code skills · 65k catalog · per-project routing</text>
+  <text x="400" y="276" text-anchor="middle" font-size="15" letter-spacing="0.5"
+        fill="#94a3b8">semantic router for Claude Code skills · per-project routing · 3-layer security</text>
 </svg>
