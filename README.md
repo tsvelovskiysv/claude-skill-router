@@ -212,16 +212,23 @@ Skill marketplaces are a real supply-chain surface: skills are executable instru
 
 **Network & privacy.** The tool makes exactly three kinds of network requests: GitHub Releases (catalog updates), the GitHub Contents API (skill bodies at install time), and a one-time HuggingFace download of the embedding model. Your project is embedded **locally**; no code, telemetry, or usage data ever leaves your machine.
 
+The full screening methodology — every pattern class, the audit flow, and the honest limits of what SHA pinning does and doesn't prove — is documented in [docs/screening.md](docs/screening.md).
+
+### FAQ: why only 41 hard-blocked skills, when audits report ~12% malicious?
+
+Different populations. The ~12% figure comes from an audit of **ClawHub** (2,857 skills; 335 of the 341 malicious ones were a single campaign, ClawHavoc — which this catalog *did* find and quarantine). This catalog is mined from general GitHub repos, where malware concentration is far lower; identical malicious bodies dedupe into single entities; ~1,800 `needs_review` entities are additionally excluded from install until audited; and routing draws only from the rating ≥ 5 pool, which junk doesn't reach. Details and the trust-model fine print: [docs/screening.md](docs/screening.md).
+
 ---
 
 ## Commands
 
 ```bash
 # Full pipeline on the current directory: detect → facet → recall → select → install
-skill-router .
+skill-router .                        # --top N picks a smaller set (default 45)
 
-# Routing only — print the ~45 chosen skills for this project, install nothing (dry run)
-skill-router select .                 # --about "text" adds a project description to faceting
+# Routing only — print the chosen skills for this project, install nothing (dry run)
+skill-router select .                 # --about "text" adds a project description;
+                                      # --top 12 for a lean set
 
 # Install specific skills by name (on-demand fetch from origin + SHA-256 verify)
 skill-router install <skill-name> ...  # -p/--project <dir> targets another project (default: .)
@@ -249,6 +256,15 @@ Search matches names, source repos, and descriptions; combine it with the catego
 ![Searching the catalog — "react components" narrows 65k skills to 106](assets/ui-search.png)
 
 Great for exploring what's out there before routing a project, or for cherry-picking single skills to install by name.
+
+### How many skills should you install?
+
+The default `--top 45` is built for **coverage**: every facet of a non-trivial project gets skills. If you prefer a tighter context and sharper skill activation — many practitioners do — go lean:
+
+- `skill-router . --top 12` for a small, focused set (the coverage quota of 2 skills per facet sets the floor, so with many facets you may get slightly more), or
+- use the router as **discovery only**: `skill-router select .` / `skill-router ui` to find candidates, then `skill-router install <name> <name> …` for the 3–5 you actually read and trust.
+
+Installed skills run in `name-only` mode (Claude Code keeps just the name + one-line description in context and loads a body on demand), so even the full set stays cheap in tokens — but a smaller, hand-reviewed set is the right call for sensitive codebases. See the trust notes in [docs/screening.md](docs/screening.md).
 
 ---
 

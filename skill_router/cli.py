@@ -80,7 +80,7 @@ def _load_facets(project, prof, about):
     return facets_mod.from_stack(prof, about), "stack fallback"
 
 
-def _route(project, about, do_install):
+def _route(project, about, do_install, top=45):
     print(ui.banner())
     if not _ensure_data():
         return 1
@@ -104,7 +104,7 @@ def _route(project, about, do_install):
     if pstacks:
         print(ui.dim(f"project stack (foreign excluded): {', '.join(sorted(pstacks))}"))
     try:
-        picked = select_mod.select(facets, target=45, proj_stacks=pstacks)
+        picked = select_mod.select(facets, target=top, proj_stacks=pstacks)
     except RuntimeError as e:              # битые данные / модель не скачалась — без трейсбека
         print("\n" + ui.red(str(e)), file=sys.stderr)
         return 1
@@ -167,15 +167,25 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     _safe_streams()
 
-    # без подкоманды: `skill-router` / `skill-router .` / `skill-router path` — полный цикл.
+    # без подкоманды: `skill-router [path] [--top N]` — полный цикл.
     # Разбирается ДО argparse: сабпарсеры не пропускают неизвестный позиционный аргумент.
-    if not argv:
-        return _route(os.path.abspath("."), "", do_install=True)
-    if argv[0] not in COMMANDS and argv[0] not in ("-h", "--help"):
-        if argv[0].startswith("-"):
-            print(f"unknown option: {argv[0]} (see skill-router --help)", file=sys.stderr)
+    if not argv or (argv[0] not in COMMANDS and argv[0] not in ("-h", "--help")):
+        top, rest = 45, []
+        it = iter(argv)
+        for a in it:
+            if a == "--top":
+                try:
+                    top = max(1, int(next(it)))
+                except (StopIteration, ValueError):
+                    print("--top needs a number (e.g. --top 12)", file=sys.stderr)
+                    return 2
+            else:
+                rest.append(a)
+        if rest and rest[0].startswith("-"):
+            print(f"unknown option: {rest[0]} (see skill-router --help)", file=sys.stderr)
             return 2
-        return _route(os.path.abspath(argv[0]), "", do_install=True)
+        project = rest[0] if rest else "."
+        return _route(os.path.abspath(project), "", do_install=True, top=top)
 
     p = argparse.ArgumentParser(prog="skill-router", description="Semantic router for Claude Code skills.")
     sub = p.add_subparsers(dest="cmd")
@@ -183,6 +193,8 @@ def main(argv=None):
     sp = sub.add_parser("select", help="route only, do not install (dry-run)")
     sp.add_argument("project", nargs="?", default=".")
     sp.add_argument("--about", default="", help="project description (improves faceting)")
+    sp.add_argument("--top", type=int, default=45,
+                    help="how many skills to pick (default 45; 10-15 for a lean set)")
 
     ip = sub.add_parser("install", help="install specific skills by name")
     ip.add_argument("names", nargs="+")
@@ -205,7 +217,8 @@ def main(argv=None):
         from . import ui_server
         return ui_server.serve(open_browser=not args.no_open)
     if args.cmd == "select":
-        return _route(os.path.abspath(args.project), args.about, do_install=False)
+        return _route(os.path.abspath(args.project), args.about, do_install=False,
+                      top=max(1, args.top))
     if args.cmd == "install":
         return _install_named(os.path.abspath(args.project), args.names)
     p.print_help()
