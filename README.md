@@ -276,7 +276,7 @@ Because releases carry **metadata and embeddings only** (never skill bodies), up
 - **~100 MB catalog + semantic index**, downloaded on first run and cached locally.
 - The embedding model (`BAAI/bge-small-en`, ~65 MB) is downloaded once on first use from HuggingFace.
 - Network access to GitHub (for `update` and for on-demand body fetches).
-- **`GITHUB_TOKEN` recommended.** Body fetches use the GitHub API, which allows only **60 anonymous requests/hour** — one full install (~45 skills) nearly exhausts it. Set `GITHUB_TOKEN` (any classic token, no scopes needed) to raise the limit to 5,000/hour:
+- **`GITHUB_TOKEN` recommended.** Body fetches use the GitHub API, which allows only **60 anonymous requests/hour** — one full install (~45 skills) nearly exhausts it. The CLI **checks your remaining quota before installing** and warns you (or stops, if the quota is already exhausted) with the reset time. Set `GITHUB_TOKEN` (any classic token, no scopes needed) to raise the limit to 5,000/hour:
 
   ```bash
   export GITHUB_TOKEN=ghp_...        # or GH_TOKEN

@@ -9,6 +9,7 @@ import os
 import io
 import sys
 import json
+import time
 import argparse
 
 from . import config, stack as stack_mod, facets as facets_mod, ui
@@ -47,6 +48,26 @@ def _manifest_text(project):
             if len(out) >= 40:
                 break
     return " ".join(out).lower()
+
+
+def _check_rate(install_mod, token, needed):
+    """Pre-flight: хватит ли квоты GitHub API на установку. → False = ставить нечем."""
+    rs = install_mod.rate_status(token)
+    if not rs or rs[0] is None:
+        return True                                # сеть/эндпоинт недоступны — не гадаем
+    remaining, limit, reset = rs
+    mins = max(1, int((reset - time.time()) / 60)) if reset else 60
+    if remaining == 0:
+        print(ui.red(f"GitHub API rate limit exhausted (0/{limit}). ")
+              + ui.yellow(f"Resets in ~{mins} min."
+                          + ("" if token else " Set GITHUB_TOKEN to get 5000 req/h.")),
+              file=sys.stderr)
+        return False
+    if remaining < needed:
+        print(ui.yellow(f"GitHub API: {remaining}/{limit} requests left this hour, "
+                        f"{needed} needed — some installs will fail (resets in ~{mins} min)."
+                        + ("" if token else " Set GITHUB_TOKEN to get 5000 req/h.")))
+    return True
 
 
 def _load_facets(project, prof, about):
@@ -107,6 +128,8 @@ def _route(project, about, do_install):
 
     from . import install as install_mod
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not _check_rate(install_mod, token, len(picked)):
+        return 1
     res = install_mod.install(project, picked, token=token)
     print("\n" + ui.green(f"✔ installed {len(res['installed'])}")
           + ui.dim(f" → {os.path.join(project, '.claude', 'skills')}"))
@@ -208,6 +231,8 @@ def _install_named(project, names):
     if not rows:
         return 1
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not _check_rate(install_mod, token, len(rows)):
+        return 1
     res = install_mod.install(project, rows, token=token)
     print(f"installed: {len(res['installed'])}; blocked: {len(res['blocked'])}; "
           f"flagged: {len(res['flagged'])}; changed: {len(res['changed'])}; "

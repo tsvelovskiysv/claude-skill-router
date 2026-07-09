@@ -39,6 +39,17 @@ def _gh_get(url, token=None):
         return json.loads(r.read().decode("utf-8"))
 
 
+def rate_status(token=None):
+    """Остаток квоты GitHub API → (remaining, limit, reset_epoch) или None.
+    Сам запрос /rate_limit квоту не тратит — безопасно для pre-flight проверки."""
+    try:
+        d = _gh_get("https://api.github.com/rate_limit", token)
+        core = (d.get("resources") or {}).get("core") or {}
+        return core.get("remaining"), core.get("limit"), core.get("reset")
+    except Exception:
+        return None
+
+
 def fetch_body(canon, canon_path, token=None):
     """SKILL.md из репо-источника (default branch) → (bytes|None, http_code|None)."""
     if not canon or not canon_path:
