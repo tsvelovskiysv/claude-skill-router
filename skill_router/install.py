@@ -72,15 +72,19 @@ def fetch_body(canon, canon_path, token=None):
     return None, None
 
 
-def install(project, selection, base_names=None, token=None, allow_changed=False, log=print):
-    """selection = list[dict] (из select.select). Ставит чистые в <project>/.claude/skills/."""
+def install(project, selection, base_names=None, token=None, allow_changed=False,
+            deep_audit=False, log=print):
+    """selection = list[dict] (из select.select). Ставит чистые в <project>/.claude/skills/.
+
+    deep_audit=True — перед записью каждое тело проходит LLM-аудит (deep_audit.audit_body):
+    malicious → не ставим; suspicious → ставим, но помечаем в audited."""
     base_names = set(n.lower() for n in (base_names or []))
     skills_dir = os.path.join(project, ".claude", "skills")
     os.makedirs(skills_dir, exist_ok=True)
     root = os.path.normpath(skills_dir)
 
     installed, blocked, changed, invalid, flagged, failed, no_sha = [], [], [], [], [], [], []
-    screened = []
+    screened, audited = [], []
     rate_limited = False
     for it in selection:
         name = _safe_name(it.get("name"))
@@ -109,6 +113,16 @@ def install(project, selection, base_names=None, token=None, allow_changed=False
         sev, flag = screen.verdict(body)
         if sev is not None:
             screened.append((name, flag)); continue
+
+        # глубокий LLM-аудит (опц.): читает всё тело, не только флагнутое regex-ом
+        if deep_audit:
+            from . import deep_audit as da
+            res = da.audit_body(body)
+            if res and res["verdict"] == "malicious":
+                audited.append((name, "malicious", res["reason"])); continue
+            if res and res["verdict"] == "suspicious":
+                audited.append((name, "suspicious", res["reason"]))
+            # res is None (аудитор недоступен/сбой) — не блокируем, базовые слои отработали
 
         dest = os.path.normpath(os.path.join(skills_dir, name))
         if not (dest == root or dest.startswith(root + os.sep)):
@@ -140,4 +154,5 @@ def install(project, selection, base_names=None, token=None, allow_changed=False
 
     return {"installed": installed, "blocked": blocked, "changed": changed,
             "invalid": invalid, "flagged": flagged, "failed": failed,
-            "no_sha": no_sha, "screened": screened, "rate_limited": rate_limited}
+            "no_sha": no_sha, "screened": screened, "audited": audited,
+            "rate_limited": rate_limited}

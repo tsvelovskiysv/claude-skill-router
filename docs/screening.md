@@ -68,10 +68,20 @@ catalog said the skill was clean. This is deliberately not just trust in the
 published catalog: it defends against a catalog that is stale, buggy, or
 compromised, and against any skill that passed layer 1 without ever reaching a
 layer-2 human/LLM audit. It's a regex scan — cheap, offline, deterministic — so
-it costs nothing per install and needs no API key. (A heavier, opt-in per-skill
-LLM re-audit for the truly cautious is on the roadmap; it is not the default,
-because a repeated LLM pass on every install would need an API key and re-derive
-a verdict the catalog already carries.)
+it costs nothing per install and needs no API key.
+
+### Optional deep audit (`--deep-audit`)
+
+For the gap the static scan can't close — a payload crafted to evade the regex,
+which then never reaches any LLM audit — `--deep-audit` runs a **full-body LLM
+audit before each skill is enabled**. It reads the *entire* body, so evasion of
+layer 1 doesn't help. Malicious → not installed; suspicious → installed but
+flagged. It reuses your Claude Code login (`claude` in PATH) — no separate API
+key — or falls back to `ANTHROPIC_API_KEY`. Off by default (it needs a model,
+spends usage quota, and adds ~10–15 s per skill); the terminal asks y/N, or pass
+`--deep-audit` / `--no-deep-audit` to decide up front. The auditor runs with
+**all tools disabled** and treats the body as untrusted data, so a skill can't
+prompt-inject its way to a clean verdict; verdicts are cached by content hash.
 
 ## "Why only 41 hard-blocked out of 65k, when audits report ~12% malicious?"
 

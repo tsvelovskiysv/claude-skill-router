@@ -80,7 +80,32 @@ def _load_facets(project, prof, about):
     return facets_mod.from_stack(prof, about), "stack fallback"
 
 
-def _route(project, about, do_install, top=45):
+def _decide_deep_audit(deep_audit, n):
+    """Три ветки: флаг задан → да; живой терминал → спросить; не-TTY → нет."""
+    from . import deep_audit as da
+    if deep_audit == "off":
+        return False
+    if not da.available():
+        if deep_audit == "on":                       # явно просили, но нечем
+            print(ui.yellow("--deep-audit needs Claude Code (`claude` in PATH) or "
+                            "ANTHROPIC_API_KEY — skipping the deep audit."), file=sys.stderr)
+        return False
+    if deep_audit == "on":
+        print(ui.dim(f"deep audit: {da.transport()}"))
+        return True
+    # auto: спрашиваем только в интерактивном терминале
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        return False
+    try:
+        ans = input(ui.bold(f"\nRun a deep LLM audit of {n} skill bodies before enabling them? "
+                            f"(~{max(1, n // 8)}-{max(1, n // 4)} min, uses your "
+                            f"{da.transport()}) [y/N] ")).strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return False
+    return ans in ("y", "yes")
+
+
+def _route(project, about, do_install, top=45, deep_audit="auto"):
     print(ui.banner())
     if not _ensure_data():
         return 1
@@ -130,7 +155,8 @@ def _route(project, about, do_install, top=45):
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if not _check_rate(install_mod, token, len(picked)):
         return 1
-    res = install_mod.install(project, picked, token=token)
+    do_audit = _decide_deep_audit(deep_audit, len(picked))
+    res = install_mod.install(project, picked, token=token, deep_audit=do_audit)
     print("\n" + ui.green(f"✔ installed {len(res['installed'])}")
           + ui.dim(f" → {os.path.join(project, '.claude', 'skills')}"))
     if res["blocked"]:
@@ -138,6 +164,15 @@ def _route(project, about, do_install, top=45):
     if res["screened"]:
         print(ui.red(f"⛔ blocked by local scan: ")
               + ", ".join(f"{n} ({fl})" for n, fl in res["screened"]))
+    audited = res.get("audited") or []
+    mal = [(n, r) for n, v, r in audited if v == "malicious"]
+    susp = [(n, r) for n, v, r in audited if v == "suspicious"]
+    if mal:
+        print(ui.red(f"⛔ blocked by deep audit (malicious): ")
+              + "; ".join(f"{n} — {r}" for n, r in mal))
+    if susp:
+        print(ui.yellow(f"● installed but flagged suspicious by deep audit: ")
+              + "; ".join(f"{n} — {r}" for n, r in susp))
     if res["flagged"]:
         print(ui.yellow(f"● skipped (needs audit): ") + ", ".join(res["flagged"]))
     if res["changed"]:
@@ -173,7 +208,7 @@ def main(argv=None):
     # без подкоманды: `skill-router [path] [--top N]` — полный цикл.
     # Разбирается ДО argparse: сабпарсеры не пропускают неизвестный позиционный аргумент.
     if not argv or (argv[0] not in COMMANDS and argv[0] not in ("-h", "--help")):
-        top, rest = 45, []
+        top, deep, rest = 45, "auto", []
         it = iter(argv)
         for a in it:
             if a == "--top":
@@ -182,13 +217,17 @@ def main(argv=None):
                 except (StopIteration, ValueError):
                     print("--top needs a number (e.g. --top 12)", file=sys.stderr)
                     return 2
+            elif a == "--deep-audit":
+                deep = "on"
+            elif a == "--no-deep-audit":
+                deep = "off"
             else:
                 rest.append(a)
         if rest and rest[0].startswith("-"):
             print(f"unknown option: {rest[0]} (see skill-router --help)", file=sys.stderr)
             return 2
         project = rest[0] if rest else "."
-        return _route(os.path.abspath(project), "", do_install=True, top=top)
+        return _route(os.path.abspath(project), "", do_install=True, top=top, deep_audit=deep)
 
     p = argparse.ArgumentParser(prog="skill-router", description="Semantic router for Claude Code skills.")
     sub = p.add_subparsers(dest="cmd")

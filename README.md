@@ -228,6 +228,9 @@ Different populations. The ~12% figure comes from an audit of **ClawHub** (2,857
 # Full pipeline on the current directory: detect → facet → recall → select → install
 skill-router .                        # --top N picks a smaller set (default 45)
 
+# Full pipeline + a deep LLM audit of every body before enabling it
+skill-router . --deep-audit           # reuses your Claude Code login; no API key needed
+
 # Routing only — print the chosen skills for this project, install nothing (dry run)
 skill-router select .                 # --about "text" adds a project description;
                                       # --top 12 for a lean set
@@ -267,6 +270,18 @@ The default `--top 45` is built for **coverage**: every facet of a non-trivial p
 - use the router as **discovery only**: `skill-router select .` / `skill-router ui` to find candidates, then `skill-router install <name> <name> …` for the 3–5 you actually read and trust.
 
 Installed skills run in `name-only` mode (Claude Code keeps just the name + one-line description in context and loads a body on demand), so even the full set stays cheap in tokens — but a smaller, hand-reviewed set is the right call for sensitive codebases. See the trust notes in [docs/screening.md](docs/screening.md).
+
+### Deep audit (`--deep-audit`)
+
+The static scan is fast but pattern-based. For a real read of every skill, `--deep-audit` runs a full-body **LLM audit before each skill is enabled** — it reads the *whole* body (not just what the regex flagged), so it catches evasions the static layer can't. A body judged **malicious** is not installed; **suspicious** is installed but flagged with a reason.
+
+```bash
+skill-router . --deep-audit           # audit all, no prompt
+skill-router .                        # in a terminal, you're asked y/N before enabling
+skill-router . --no-deep-audit        # never ask (good for scripts/CI)
+```
+
+It **reuses your existing Claude Code login** (`claude` in your PATH) — no separate API key. If Claude Code isn't installed it falls back to `ANTHROPIC_API_KEY`; if neither is present the audit is skipped. The audit runs with **all tools disabled** and treats the skill body as untrusted data, so a skill can't prompt-inject the auditor into approving it. Verdicts are cached by content hash, so re-installs don't pay twice. Expect ~10–15 s per skill and some of your Claude usage quota — pair it with `--top` for a lean, fully-audited set: `skill-router . --top 10 --deep-audit`.
 
 ---
 
@@ -330,7 +345,6 @@ That said, roughly **80% of the catalog is stack-neutral** — methodology, desi
 - **Delta catalog updates** — incremental releases instead of full index pulls.
 - Optional **offline / local re-ranking** mode with no LLM dependency.
 - **Shared team profiles** — commit a project's facet/skill set for reproducible onboarding.
-- **Opt-in per-skill LLM re-audit** (`--deep-audit`) — a full-body audit of a chosen skill on your machine, for when regex screening isn't enough (needs an API key).
 - Editor integration (VS Code) for one-click routing.
 - Expanded community trust signals feeding the rating.
 

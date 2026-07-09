@@ -49,6 +49,10 @@ def version_path() -> Path:
     return data_dir() / "VERSION"
 
 
+def audit_cache_path() -> Path:
+    return data_dir() / "deep_audit_cache.jsonl"
+
+
 def data_ready() -> bool:
     """Есть ли минимум для работы (каталог метаданных)."""
     return catalog_path().exists()
